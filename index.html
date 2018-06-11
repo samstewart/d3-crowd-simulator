@@ -16,104 +16,133 @@ circle {
 	stroke: none;
 }
 
-circle.guy {
-	fill: #00f;
-}
-circle.exit {
-fill:#f00;
-}
+
 
 </style>
 <body>
 <script>
-
-function minimum(list) {
-
-	list.reduceRight(function(a, b) { return min(a,b); })
-}
-
-function neighbors(world, node) {
-
-	world.nodes.filter(function(neigh) { return dist(neigh, node) <= 3/2 * world.radius; } );
-
-}
-
-function all_distances(graph, dst_node) { 
-	// we add 'distance' to each node 
-	dst_node.distance = 0;
-	
-}
-
-function load_world(fname) {
-	// load the json graph file
-	// as per the unix philosophy, most everything is precomputed in the graph file.
-	d3.json("simple_test.json", function(json) {
-		var data = json.layers[0].data; 
-
-	// bind the data to the svg line elements. (create if necc) 
-        
-	
-	var gridWidth = json.layers[0].width; // get from json data
-	var gridHeight = json.layers[0].height; // get from json data
-	var radius = 40;
-
-	// fix 'off by 1' with the Tiled app grid.
-		
-	var nodes = [];
-	var dataIndex = 0;
-
-	for (var y = 0; y < gridHeight; y++) {
-
-		for (var x = 0; x < gridWidth; x++) {
-			var node_type = type_names[data[dataIndex] - 1];
-
-			if (node_type != "obstacle") {
-				nodes.push({
-					id: 1,
-					type: node_type,
-					cx: radius * (x + .5 * (y % 2)),
-					cy: radius * (Math.sqrt(3) / 2 * y)
-				});
-			}
-
-			dataIndex++;
-		}
-	
-}
+// global constants
 var width = 1060,
     height = 900
+var type_names = ["empty", "exit", "guy", "obstacle",  "seed", "soft_obstacle"];
+var node_colors = {empty: "#000", exit: "#0f0", guy: "#00f", seed: "#ff0", soft_obstacle: "#0ff", highlighted: "#f00"};
+
+
+function minimum(l) {
+
+	return l.reduceRight(function(a, b) { return Math.min(a,b); });
+}
+// Q: for display properties derived from the model, is it better to update the underlying model or the display?
+// Idea: write post on D3 with category theory [category of data <-> category of DOM]
+
+function neighbors(world, node) {
+	
+	// we have a factor of 3/2 to make radius just a bit bigger to avoid floating point error
+	return world.nodes.filter(function(neigh) { return distance(neigh, node) <= 3/2 * world.radius; } );
+}
+
+function distance(node1, node2) {
+
+	return Math.sqrt(Math.pow(node1.cx - node2.cx, 2) + Math.pow(node1.cy - node2.cy, 2));
+
+}
+
+function highlight_nodes(nodes) {
+	
+	// update data
+	nodes.forEach(function(n) { n.color = node_colors.highlighted});
+	// update display
+	d3.selectAll('circle').transition().duration(1000).ease('linear').attr('fill', function(d) { return d.color; });
+}
+function unhighlight_nodes(nodes) {
+	
+	// update data
+	nodes.forEach(function(n) { n.color = node_colors[n.type]});// return to original color
+	// update display
+	d3.selectAll('circle').transition().duration(1000).ease('linear').attr('fill', function(d) { return d.color; });
+}
+
+function has_visited_neighbor(world, node) {
+	return neighbors(world, node).filter(function(n) { return n.distance < Infinity; }).length > 0;
+}
+
+// Q: is it really a trick that we go backwards? I suppose it allows us to calculate *all* the scores?
+function wavefront(world) {
+	return world.nodes.filter(function(n) { return n.distance == Infinity && has_visited_neighbor(world, n); })
+}
+
+function all_distances(world, dst_node) { 
+
+	// we add 'distance' to each node 
+	dst_node.distance = 0;
+
+	var wavefront = world.nodes.filter(function(n) { return n.type == "exit"; })	
+}
+
+
+// TODO: move embedding code to preprocessor (node.js?). 
+// load the json graph file
+// as per the unix philosophy, most everything is precomputed in the graph file.
+d3.json("simple_test.json", function(json) {
+	var data = json.layers[0].data; 
+
+// bind the data to the svg line elements. (create if necc) 
+
+world = {
+	width: json.layers[0].width, // get from json data
+	height: json.layers[0].height, // get from json data
+	radius: 40
+};
+
+// fix 'off by 1' with the Tiled app grid.
+world.nodes = [];
+var dataIndex = 0; // index for getting node type from the JSON array
+// embed the graph in coordinates
+for (var y = 0; y < world.height; y++) {
+
+	for (var x = 0; x < world.width; x++) {
+		var node_type = type_names[data[dataIndex] - 1]; // convert numerical code to text
+		var node_color = node_colors[node_type]; // use the node type to get a color
+
+		if (node_type != "obstacle") {
+			world.nodes.push({
+				type: node_type,
+				distance: node_type == "exit" ? 0 : Infinity, // for shortest path calculations
+				color: node_color,
+				cx: world.radius * (x + .5 * (y % 2)),
+				cy: world.radius * (Math.sqrt(3) / 2 * y)
+			});
+
+		}
+		
+			dataIndex++;
+	}
+}
 
 var svg = d3.select("body").append("svg")
     .attr("width", width)
     .attr("height", height);
-// node types have numerical codes that we convert to class names
 
-       var type_names = ["empty", "exit", "guy", "obstacle",  "seed", "soft obstacle"];
-// initialize the force layout engine. all we care about is replacing the vertex indices with object references (happens in the JSON load section).
-// We don't care about the numbers below. We should do the graph inflation manually -- it's not hard. We only need the topology, not the (x,y) coordinates. It is redundant to store position information in the model. That is a derived quantity.
+//<text font="10px sans-serif" dy="1em" fill="black" dx=".4em">3</text>
+	// nodes will be dotes and text (these numbers useful for debugging)
+d3.select("svg").selectAll("g")  // can we get rid of .node?
+      .data(world.nodes) // indexing is via ordering in JSON file?
+      .enter().append("g")
+		.attr("transform", function(d) { return "translate(" + (10 + d.cx) + ", " + (10 + d.cy) + ")" }); // embed nodes with unit radius and then scale / translate here?
 
-}
-	
-	
-  var node = svg.selectAll(".node")  // can we get rid of .node?
-      .data(nodes) // indexing is via ordering in JSON file?
-      .enter().append("circle")
+	// add the dots
+	// Q: why can't I select the g directly via .selectAll('svg g')? It's a doubly nested array or something.
+d3.select("svg").selectAll("g").append("circle")
       .attr("r", "5")
-      .attr("class", "node")
-      .attr("cx", function(d) { return d.cx; }) // this should be automatically bound! 
-     .attr("cy", function(d) { return d.cy; })
-	.attr("class", function(d) {return d.type; })
-	.attr("transform", "translate(10, 10)")
+     .attr("fill", function(d) {return d.color; })
 
-  var link = svg.selectAll(".link") // what does .selectAll have to do with binding the data?
-      .data(edges)
-      .enter().append("line")
-      .attr("class", "link")
-      .attr("x1", function(d) { return d.src.cx }) // is there some way to bind this automatically? see the node question 
-      .attr("y1", function(d) { return d.src.cy })
-      .attr("x2", function(d) { return d.dst.cx })
-      .attr("y2", function(d) { return d.dst.cy })
-	.attr("transform", "translate(10, 10)");
+d3.select("svg").selectAll("g").append("text")
+     .attr("fill", "black")
+     .attr("font", "10px sans-serif")
+	.attr("dx", 12)
+	.attr("dy", "1em")
+     .text("0")
+
 
 });
 
