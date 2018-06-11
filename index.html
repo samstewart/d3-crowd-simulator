@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<script src="http://d3js.org/d3.v2.min.js?2.9.3"></script>
+<script src="https://d3js.org/d3-hexbin.v0.2.min.js"></script>
+<style>
+.mesh {
+	fill: none;
+	stroke: #000;
+	stroke-width: .25px;
+}
+.link {
+  stroke: #000;
+}
+
+circle {
+	stroke: none;
+}
+
+circle.guy {
+	fill: #00f;
+}
+circle.exit {
+fill:#f00;
+}
+
+</style>
+<body>
+<script>
+
+function minimum(list) {
+
+	list.reduceRight(function(a, b) { return min(a,b); })
+}
+
+function neighbors(world, node) {
+
+	world.nodes.filter(function(neigh) { return dist(neigh, node) <= 3/2 * world.radius; } );
+
+}
+
+function all_distances(graph, dst_node) { 
+	// we add 'distance' to each node 
+	dst_node.distance = 0;
+	
+}
+
+function load_world(fname) {
+	// load the json graph file
+	// as per the unix philosophy, most everything is precomputed in the graph file.
+	d3.json("simple_test.json", function(json) {
+		var data = json.layers[0].data; 
+
+	// bind the data to the svg line elements. (create if necc) 
+        
+	
+	var gridWidth = json.layers[0].width; // get from json data
+	var gridHeight = json.layers[0].height; // get from json data
+	var radius = 40;
+
+	// fix 'off by 1' with the Tiled app grid.
+		
+	var nodes = [];
+	var dataIndex = 0;
+
+	for (var y = 0; y < gridHeight; y++) {
+
+		for (var x = 0; x < gridWidth; x++) {
+			var node_type = type_names[data[dataIndex] - 1];
+
+			if (node_type != "obstacle") {
+				nodes.push({
+					id: 1,
+					type: node_type,
+					cx: radius * (x + .5 * (y % 2)),
+					cy: radius * (Math.sqrt(3) / 2 * y)
+				});
+			}
+
+			dataIndex++;
+		}
+	
+}
+var width = 1060,
+    height = 900
+
+var svg = d3.select("body").append("svg")
+    .attr("width", width)
+    .attr("height", height);
+// node types have numerical codes that we convert to class names
+
+       var type_names = ["empty", "exit", "guy", "obstacle",  "seed", "soft obstacle"];
+// initialize the force layout engine. all we care about is replacing the vertex indices with object references (happens in the JSON load section).
+// We don't care about the numbers below. We should do the graph inflation manually -- it's not hard. We only need the topology, not the (x,y) coordinates. It is redundant to store position information in the model. That is a derived quantity.
+
+}
+	
+	
+  var node = svg.selectAll(".node")  // can we get rid of .node?
+      .data(nodes) // indexing is via ordering in JSON file?
+      .enter().append("circle")
+      .attr("r", "5")
+      .attr("class", "node")
+      .attr("cx", function(d) { return d.cx; }) // this should be automatically bound! 
+     .attr("cy", function(d) { return d.cy; })
+	.attr("class", function(d) {return d.type; })
+	.attr("transform", "translate(10, 10)")
+
+  var link = svg.selectAll(".link") // what does .selectAll have to do with binding the data?
+      .data(edges)
+      .enter().append("line")
+      .attr("class", "link")
+      .attr("x1", function(d) { return d.src.cx }) // is there some way to bind this automatically? see the node question 
+      .attr("y1", function(d) { return d.src.cy })
+      .attr("x2", function(d) { return d.dst.cx })
+      .attr("y2", function(d) { return d.dst.cy })
+	.attr("transform", "translate(10, 10)");
+
+});
+
+</script>
+

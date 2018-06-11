@@ -1,0 +1,12 @@
+{
+  "nodes":[
+		{"id": 0, "class":"guy", "cx": 100.0, "cy": 100.0},
+		{"id": 1, "class":"emtpy","cx": 200.0, "cy": 200.0}
+	],
+	"links":[
+		{ "id": 0, 
+			"source": {"id": 0, "class":"guy", "cx": 100.0, "cy": 100.0},
+			"target": {"id": 1, "class":"emtpy","cx": 200.0, "cy": 200.0}
+		}  
+	]
+}
