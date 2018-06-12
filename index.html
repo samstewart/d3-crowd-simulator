@@ -27,10 +27,19 @@ var width = 1060,
 var type_names = ["empty", "exit", "guy", "obstacle",  "seed", "soft_obstacle"];
 var node_colors = {empty: "#000", exit: "#0f0", guy: "#00f", seed: "#ff0", soft_obstacle: "#0ff", highlighted: "#f00"};
 
+function minNode(node1, node2) {
 
-function minimum(l) {
+	smaller = Object.assign({}, node1.distance < node2.distance ? node1 : node2);
+	
+	smaller.distance = Math.min(node1.distance, node2.distance);
 
-	return l.reduceRight(function(a, b) { return Math.min(a,b); });
+	return smaller;
+}
+// TODO: a custom comparator (new ordering) is only thing that's necessary.
+function minNodes(nodes) {
+
+	return nodes.reduceRight(minNode);
+
 }
 // Q: for display properties derived from the model, is it better to update the underlying model or the display?
 // Idea: write post on D3 with category theory [category of data <-> category of DOM]
@@ -38,7 +47,7 @@ function minimum(l) {
 function neighbors(world, node) {
 	
 	// we have a factor of 3/2 to make radius just a bit bigger to avoid floating point error
-	return world.nodes.filter(function(neigh) { return distance(neigh, node) <= 3/2 * world.radius; } );
+	return world.nodes.filter(function(neigh) { return 0 < distance(neigh, node) && distance(neigh, node) <= 3/2 * world.radius; } );
 }
 
 function distance(node1, node2) {
@@ -62,13 +71,31 @@ function unhighlight_nodes(nodes) {
 	d3.selectAll('circle').transition().duration(1000).ease('linear').attr('fill', function(d) { return d.color; });
 }
 
-function has_visited_neighbor(world, node) {
-	return neighbors(world, node).filter(function(n) { return n.distance < Infinity; }).length > 0;
+function has_unvisited_neighbor(world, node) {
+	return neighbors(world, node).filter(function(n) { return n.distance == Infinity; }).length > 0;
 }
+
 
 // Q: is it really a trick that we go backwards? I suppose it allows us to calculate *all* the scores?
 function wavefront(world) {
-	return world.nodes.filter(function(n) { return n.distance == Infinity && has_visited_neighbor(world, n); })
+	return world.nodes.filter(function(n) { return n.distance < Infinity && has_unvisited_neighbor(world, n); })
+}
+
+
+
+// this looks like a fold! can every loop be reduce to a fold? TODO: turn into a fold.
+function advance_wavefront(world) {
+	
+	// for each of the nodes in the wave front, update the distance to the adjacent node. 
+	wavefront(world).forEach(function(node) { 
+		neighbors(world, node).forEach(function(neigh) { 
+			neigh.distance = Math.min(neigh.distance, node.distance + 1); 
+		})
+	});
+
+	d3.selectAll('g text').text(function(d) { return d.distance; })
+
+	return world;
 }
 
 function all_distances(world, dst_node) { 
@@ -91,7 +118,7 @@ d3.json("simple_test.json", function(json) {
 world = {
 	width: json.layers[0].width, // get from json data
 	height: json.layers[0].height, // get from json data
-	radius: 40
+	radius: 90
 };
 
 // fix 'off by 1' with the Tiled app grid.
@@ -141,7 +168,7 @@ d3.select("svg").selectAll("g").append("text")
      .attr("font", "10px sans-serif")
 	.attr("dx", 12)
 	.attr("dy", "1em")
-     .text("0")
+		.text(function(d) { return d.distance; })
 
 
 });
