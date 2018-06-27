@@ -36,66 +36,76 @@ function minNode(node1, node2) {
 	return smaller;
 }
 // TODO: a custom comparator (new ordering) is only thing that's necessary.
+// Actually, we don't need with the wavefront algorithm. Look at the way we update neighbors in advance_wavefront. We do the same thing.
 function minNodes(nodes) {
-
 	return nodes.reduceRight(minNode);
 
 }
 // Q: for display properties derived from the model, is it better to update the underlying model or the display?
 // Idea: write post on D3 with category theory [category of data <-> category of DOM]
-
-function neighbors(world, node) {
+// Note: need to pass in a backing *data* object, not a d3 node. TODO: make this more robust so the user can pass in d3 nodes or backing objects
+function neighbors(d) {
 	
+	// look for anything within a ball of radius 3/2.
 	// we have a factor of 3/2 to make radius just a bit bigger to avoid floating point error
-	return world.nodes.filter(function(neigh) { return 0 < distance(neigh, node) && distance(neigh, node) <= 3/2 * world.radius; } );
+	return d3.selectAll('svg g').filter(function(neigh) { return 0 < distance(neigh, node) && distance(neigh, node) <= 3/2 * world.radius; } );
 }
 
 function distance(node1, node2) {
 
+	// return the Euclidean distance between two nodes
 	return Math.sqrt(Math.pow(node1.cx - node2.cx, 2) + Math.pow(node1.cy - node2.cy, 2));
 
 }
 
 function highlight_nodes(nodes) {
-	
-	// update data
-	nodes.forEach(function(n) { n.color = node_colors.highlighted});
-	// update display
-	d3.selectAll('circle').transition().duration(1000).ease('linear').attr('fill', function(d) { return d.color; });
+
+	// animate to highlighted color 
+	nodes.transition().duration(1000).ease('linear').attr('fill', function(d) { return node_colors['highlighted']; });
 }
+
 function unhighlight_nodes(nodes) {
-	
-	// update data
-	nodes.forEach(function(n) { n.color = node_colors[n.type]});// return to original color
-	// update display
-	d3.selectAll('circle').transition().duration(1000).ease('linear').attr('fill', function(d) { return d.color; });
+	// animate to unhighlighted color 
+	nodes.transition().duration(1000).ease('linear').attr('fill', function(d) { return node_colors[n.node_type]; });
 }
 
-function has_unvisited_neighbor(world, node) {
-	return neighbors(world, node).filter(function(n) { return n.distance == Infinity; }).length > 0;
+function has_unvisited_neighbor(node) {
+
+	return neighbors(node).filter(function(n) { return n.distance == Infinity; }).length > 0;
+
 }
 
+function all_graph_distances() {
 
+	while (wavefront().length > 0) {
+
+		advance_wavefront();
+
+	}
+}
 // Q: is it really a trick that we go backwards? I suppose it allows us to calculate *all* the scores?
-function wavefront(world) {
-	return world.nodes.filter(function(n) { return n.distance < Infinity && has_unvisited_neighbor(world, n); })
+function wavefront() {
+	// Q: is there a way to run Xpath or DOM queries on the visible nodes 
+	// Q: should we be accessing the data through the DOM using D3 or is it ok to access it directly like this?
+	return d3.selectAll('g svg').filter(function(n) { return n.distance < Infinity && has_unvisited_neighbor(n); })
 }
-
-
 
 // this looks like a fold! can every loop be reduce to a fold? TODO: turn into a fold.
-function advance_wavefront(world) {
+// updates the 'distance' field in every node
+function advance_wavefront() {
 	
 	// for each of the nodes in the wave front, update the distance to the adjacent node. 
-	wavefront(world).forEach(function(node) { 
-		neighbors(world, node).forEach(function(neigh) { 
+	wavefront().each(function(d) { 
+
+		// update the neighbors adjacent to the wavefront 
+		neighbors(d).each(function(neigh) { 
+
+			// see if we have found a shorter path going through this node.
 			neigh.distance = Math.min(neigh.distance, node.distance + 1); 
 		})
 	});
 
 	d3.selectAll('g text').text(function(d) { return d.distance; })
-
-	return world;
 }
 
 function all_distances(world, dst_node) { 
@@ -113,62 +123,60 @@ function all_distances(world, dst_node) {
 d3.json("simple_test.json", function(json) {
 	var data = json.layers[0].data; 
 
-// bind the data to the svg line elements. (create if necc) 
+	// bind the data to the svg line elements. (create if necc) 
 
-world = {
-	width: json.layers[0].width, // get from json data
-	height: json.layers[0].height, // get from json data
-	radius: 90
-};
+	var	width = json.layers[0].width, // get from json data
+	var	height = json.layers[0].height, // get from json data
+	var 	radius = 90;
 
-// fix 'off by 1' with the Tiled app grid.
-world.nodes = [];
-var dataIndex = 0; // index for getting node type from the JSON array
-// embed the graph in coordinates
-for (var y = 0; y < world.height; y++) {
+	// fix 'off by 1' with the Tiled app grid.
+	nodes = [];
+	var dataIndex = 0; // index for getting node type from the JSON array
+	// embed the graph in coordinates
+	// Q: can we roll this into something d3 / declarative? I think I need the doubly nested loop for generating the x,y coordinates?
+	for (var y = 0; y < height; y++) {
 
-	for (var x = 0; x < world.width; x++) {
-		var node_type = type_names[data[dataIndex] - 1]; // convert numerical code to text
-		var node_color = node_colors[node_type]; // use the node type to get a color
+		for (var x = 0; x < width; x++) {
+			var node_type = type_names[data[dataIndex] - 1]; // convert numerical code to text
 
-		if (node_type != "obstacle") {
-			world.nodes.push({
-				type: node_type,
-				distance: node_type == "exit" ? 0 : Infinity, // for shortest path calculations
-				color: node_color,
-				cx: world.radius * (x + .5 * (y % 2)),
-				cy: world.radius * (Math.sqrt(3) / 2 * y)
-			});
+			if (node_type != "obstacle") {
+				nodes.push({
+					node_type: node_type,
+					distance: node_type == "exit" ? 0 : Infinity, // for shortest path calculations
+					cx: radius * (x + .5 * (y % 2)),
+					cy: radius * (Math.sqrt(3) / 2 * y)
+				});
 
-		}
-		
+			}
+			
 			dataIndex++;
+		}
 	}
-}
 
-var svg = d3.select("body").append("svg")
-    .attr("width", width)
-    .attr("height", height);
+	var svg = d3.select("body").append("svg")
+	    .attr("width", width)
+	    .attr("height", height);
+	// Q: is it really necessary to do select(...).selectAll? Can we do it with one xpath query.
+		// why does D3 return everything nested in an array? Is there some kind of groupby command?
+	//<text font="10px sans-serif" dy="1em" fill="black" dx=".4em">3</text>
+		// nodes will be dotes and text (these numbers useful for debugging)
+	d3.select("svg").selectAll("g")  // can we get rid of .node?
+	      .data(nodes) // indexing is via ordering in JSON file?
+	      .enter().append("g")
+			.attr("transform", function(d) { return "translate(" + (10 + d.cx) + ", " + (10 + d.cy) + ")" }); // embed nodes with unit radius and then scale / translate here?
 
-//<text font="10px sans-serif" dy="1em" fill="black" dx=".4em">3</text>
-	// nodes will be dotes and text (these numbers useful for debugging)
-d3.select("svg").selectAll("g")  // can we get rid of .node?
-      .data(world.nodes) // indexing is via ordering in JSON file?
-      .enter().append("g")
-		.attr("transform", function(d) { return "translate(" + (10 + d.cx) + ", " + (10 + d.cy) + ")" }); // embed nodes with unit radius and then scale / translate here?
+		// add the dots
+		// Q: why can't I select the g directly via .selectAll('svg g')? It's a doubly nested array or something.
+	d3.select("svg").selectAll("g").append("circle")
+	      .attr("r", "5")
+	     .attr("fill", function(d) {return node_colors[d.node_type]; })
 
-	// add the dots
-	// Q: why can't I select the g directly via .selectAll('svg g')? It's a doubly nested array or something.
-d3.select("svg").selectAll("g").append("circle")
-      .attr("r", "5")
-     .attr("fill", function(d) {return d.color; })
-
-d3.select("svg").selectAll("g").append("text")
-     .attr("fill", "black")
-     .attr("font", "10px sans-serif")
-	.attr("dx", 12)
-	.attr("dy", "1em")
-		.text(function(d) { return d.distance; })
+	d3.select("svg").selectAll("g").append("text")
+	     .attr("fill", "black")
+	     .attr("font", "10px sans-serif")
+		.attr("dx", 12)
+		.attr("dy", "1em")
+			.text(function(d) { return d.distance; })
 
 
 });
