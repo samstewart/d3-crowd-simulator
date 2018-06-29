@@ -1,16 +1,8 @@
 <!DOCTYPE html>
 <meta charset="utf-8">
 <script src="http://d3js.org/d3.v2.min.js?2.9.3"></script>
-<script src="https://d3js.org/d3-hexbin.v0.2.min.js"></script>
+<script src="https://d3js.org/d3-collection.v1.min.js"></script>
 <style>
-.mesh {
-	fill: none;
-	stroke: #000;
-	stroke-width: .25px;
-}
-.link {
-  stroke: #000;
-}
 
 circle {
 	stroke: none;
@@ -23,7 +15,8 @@ circle {
 <script>
 // global constants
 var width = 1060,
-    height = 900
+    height = 900,
+    radius = 90;
 var type_names = ["empty", "exit", "guy", "obstacle",  "seed", "soft_obstacle"];
 var node_colors = {empty: "#000", exit: "#0f0", guy: "#00f", seed: "#ff0", soft_obstacle: "#0ff", highlighted: "#f00"};
 
@@ -41,27 +34,17 @@ function minNodes(nodes) {
 	return nodes.reduceRight(minNode);
 
 }
-// Q: for display properties derived from the model, is it better to update the underlying model or the display?
-// Idea: write post on D3 with category theory [category of data <-> category of DOM]
-// Note: need to pass in a backing *data* object, not a d3 node. TODO: make this more robust so the user can pass in d3 nodes or backing objects
-function neighbors(d) {
-	
-	// look for anything within a ball of radius 3/2.
-	// we have a factor of 3/2 to make radius just a bit bigger to avoid floating point error
-	return d3.selectAll('svg g').filter(function(neigh) { return 0 < distance(neigh, node) && distance(neigh, node) <= 3/2 * world.radius; } );
-}
-
-function distance(node1, node2) {
-
-	// return the Euclidean distance between two nodes
-	return Math.sqrt(Math.pow(node1.cx - node2.cx, 2) + Math.pow(node1.cy - node2.cy, 2));
-
-}
 
 function highlight_nodes(nodes) {
 
 	// animate to highlighted color 
 	nodes.transition().duration(1000).ease('linear').attr('fill', function(d) { return node_colors['highlighted']; });
+}
+
+function neighbors(node) {
+	// pass in a d3 node (will be a group of text / circle) 
+	// TODO: make this robust enough to handle data or d3 node
+	d3.selectAll('svg g line').filter(function(d) { return d.src == node.data(); } );
 }
 
 function unhighlight_nodes(nodes) {
@@ -72,7 +55,6 @@ function unhighlight_nodes(nodes) {
 function has_unvisited_neighbor(node) {
 
 	return neighbors(node).filter(function(n) { return n.distance == Infinity; }).length > 0;
-
 }
 
 function all_graph_distances() {
@@ -83,11 +65,12 @@ function all_graph_distances() {
 
 	}
 }
+
 // Q: is it really a trick that we go backwards? I suppose it allows us to calculate *all* the scores?
 function wavefront() {
 	// Q: is there a way to run Xpath or DOM queries on the visible nodes 
 	// Q: should we be accessing the data through the DOM using D3 or is it ok to access it directly like this?
-	return d3.selectAll('g svg').filter(function(n) { return n.distance < Infinity && has_unvisited_neighbor(n); })
+	return d3.selectAll('svg g').filter(function(n) { return n.distance < Infinity && has_unvisited_neighbor(n); })
 }
 
 // this looks like a fold! can every loop be reduce to a fold? TODO: turn into a fold.
@@ -116,6 +99,22 @@ function all_distances(world, dst_node) {
 	var wavefront = world.nodes.filter(function(n) { return n.type == "exit"; })	
 }
 
+function distance(node1, node2) {
+	// return the Euclidean distance between two nodes
+	return Math.sqrt(Math.pow(node1.cx - node2.cx, 2) + Math.pow(node1.cy - node2.cy, 2));
+
+}
+// Q: for display properties derived from the model, is it better to update the underlying model or the display?
+function euclidean_neighbors(d) {
+	// look for anything within a ball of radius 3/2.
+	// we have a factor of 3/2 to make radius just a bit bigger to avoid floating point error
+	return d3.selectAll('svg g').filter(function(neigh) { return 0 < distance(neigh, d) && distance(neigh, d) <= 3/2 * radius; } );
+}
+
+// convert a string representation of an edge to an actual edge object
+function string_edge_to_object_references(edge_str, nodes) {
+
+}
 
 // TODO: move embedding code to preprocessor (node.js?). 
 // load the json graph file
@@ -125,23 +124,24 @@ d3.json("simple_test.json", function(json) {
 
 	// bind the data to the svg line elements. (create if necc) 
 
-	var	width = json.layers[0].width, // get from json data
-	var	height = json.layers[0].height, // get from json data
-	var 	radius = 90;
+	var	grid_width = json.layers[0].width; // get from json data
+	var	grid_height = json.layers[0].height; // get from json data
 
 	// fix 'off by 1' with the Tiled app grid.
-	nodes = [];
+	var nodes = [];
 	var dataIndex = 0; // index for getting node type from the JSON array
 	// embed the graph in coordinates
 	// Q: can we roll this into something d3 / declarative? I think I need the doubly nested loop for generating the x,y coordinates?
-	for (var y = 0; y < height; y++) {
+	// TODO: make this more declarative by zipping types, xy coords, distances
+	for (var y = 0; y < grid_height; y++) {
 
-		for (var x = 0; x < width; x++) {
+		for (var x = 0; x < grid_width; x++) {
 			var node_type = type_names[data[dataIndex] - 1]; // convert numerical code to text
 
 			if (node_type != "obstacle") {
 				nodes.push({
 					node_type: node_type,
+					id: dataIndex, 
 					distance: node_type == "exit" ? 0 : Infinity, // for shortest path calculations
 					cx: radius * (x + .5 * (y % 2)),
 					cy: radius * (Math.sqrt(3) / 2 * y)
@@ -153,30 +153,59 @@ d3.json("simple_test.json", function(json) {
 		}
 	}
 
+	// TODO: it's annoying that we have to break the edge building into two steps. It's easier to track unique 
+	// edges as indices but easier in the code to have object references to the src / dst nodes.	
+	var lineData = d3.set();  // need a set to avoid duplicating edges
+
+	// create the edges between the nodes
+	for (var i = 0; i < nodes.length; i++) {
+		// add the neighbors (the set will ensure we don't double add edges)
+		// TODO: I still don't totally understand why we have the doubly nested array for d3 queries
+		var neighs = euclidean_neighbors(nodes[i])[0]; // find the neighbors by looking in a unit neighborhood
+
+		console.log(neighs.length)
+
+		for (var j = 0; j < neighs.length; j++) {
+
+			lineData.add([nodes[i].id, neighs[j].id].sort()); // need node indices in ascending order. we need an ordering to track uniqueness. Better to use set for two nodes?
+
+		}
+	}
+
+	lineData.add().add([0, 5]);
+	
+
+	// now convert the indices to actual object references
+	var edges = lineData.values();
+
+	// Q: why can't we then call d3.selectAll('svg g')? It appears we have to call selection.selectAll? Is the DOM not yet updated?
 	var svg = d3.select("body").append("svg")
 	    .attr("width", width)
 	    .attr("height", height);
+
 	// Q: is it really necessary to do select(...).selectAll? Can we do it with one xpath query.
-		// why does D3 return everything nested in an array? Is there some kind of groupby command?
-	//<text font="10px sans-serif" dy="1em" fill="black" dx=".4em">3</text>
-		// nodes will be dotes and text (these numbers useful for debugging)
-	d3.select("svg").selectAll("g")  // can we get rid of .node?
+	// why does D3 return everything nested in an array? Is there some kind of groupby command?
+	// nodes will be dotes and text (these numbers useful for debugging)
+	svg.selectAll("g")  // can we get rid of .node?
 	      .data(nodes) // indexing is via ordering in JSON file?
-	      .enter().append("g")
-			.attr("transform", function(d) { return "translate(" + (10 + d.cx) + ", " + (10 + d.cy) + ")" }); // embed nodes with unit radius and then scale / translate here?
+	      .enter()
+	      .append("g")
+	      .attr("transform", function(d) { return "translate(" + (10 + d.cx) + ", " + (10 + d.cy) + ")" }); // embed nodes with unit radius and then scale / translate here?
 
 		// add the dots
 		// Q: why can't I select the g directly via .selectAll('svg g')? It's a doubly nested array or something.
-	d3.select("svg").selectAll("g").append("circle")
+	svg.selectAll("g")
+	      .append("circle")
 	      .attr("r", "5")
 	     .attr("fill", function(d) {return node_colors[d.node_type]; })
 
-	d3.select("svg").selectAll("g").append("text")
+	svg.selectAll("g")
+	     .append("text")
 	     .attr("fill", "black")
 	     .attr("font", "10px sans-serif")
 		.attr("dx", 12)
 		.attr("dy", "1em")
-			.text(function(d) { return d.distance; })
+			.text(function(d) { return d.id; })
 
 
 });
