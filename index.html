@@ -17,7 +17,7 @@ circle {
 // global constants
 var width = 1060,
     height = 900,
-    radius = 90;
+    radius = 150;
 var type_names = ["empty", "exit", "guy", "obstacle",  "seed", "soft_obstacle"];
 var node_colors = {empty: "#000", exit: "#0f0", guy: "#00f", seed: "#ff0", soft_obstacle: "#0ff", highlighted: "#f00"};
 
@@ -39,7 +39,7 @@ function minNodes(nodes) {
 function highlight_nodes(nodes) {
 
 	// animate to highlighted color
-	nodes.transition().duration(1000).ease('linear').attr('fill', function(d) { return node_colors['highlighted']; });
+	nodes.select('circle').transition().duration(1000).ease('linear').attr('fill', node_colors['highlighted']);
 }
 
 // function neighbors(node) {
@@ -50,12 +50,18 @@ function highlight_nodes(nodes) {
 
 function unhighlight_nodes(nodes) {
 	// animate to unhighlighted color
-	nodes.transition().duration(1000).ease('linear').attr('fill', function(d) { return node_colors[n.node_type]; });
+	nodes.select('circle').transition().duration(1000).ease('linear').attr('fill', function(d) { return node_colors[d.node_type]; });
 }
 
-function has_unvisited_neighbor(node) {
-
-	return neighbors(node).filter(function(n) { return n.distance == Infinity; }).length > 0;
+// Why isn't there an easy way to go from *data* to the d3 display nodes?
+// Article idea: vectorization in matlab and joining in d3. Similarity is declarative programming.
+// Article idea: avoiding rounding errors. Key skills are to *avoid* big time sinks, not to make optimal choices.
+// Avoid premature optimization. Sheer volume can often beat too much thinking especially when thinking has negative
+// externalities like anxiety. Avoid mental model building too quickly.
+// Article idea: learning. Requires not just information but context == you have to be ready to absorb the information.
+// Article idea: doubt yourself / be willing to pivot rapidly. Beware of overly generalized insights.
+function has_unvisited_neighbor(node_data) {
+	return node_data.outgoing_edges.filter(function(edge) { return edge.dst.distance == Infinity; }).length > 0;
 }
 
 function all_graph_distances() {
@@ -78,32 +84,29 @@ function nodes_in_range(id_range) {
 	// pass in array of node ids
   return d3.selectAll('g').filter(function(d) { return id_range.includes(d.id); });
 }
-
-function edge_for_nodes(n1, n2) {
-	return {
-			src: n1,
-			dst: n2,
-			length: distance(n1, n2)
-		}
-}
+// Article idea: the power of *seeing* your data structures while debugging. Avoids effort of
+// having to build a mental model. Lets you manipulate them physically. Downside is bad metaphors like 'Desktop'
 
 function neighbors(node_data) {
 	// return [ [neighbors for node at index 0], [neighbors for node at index 1], etc]
 	return d3.nest()
 	.key(function(d) { return d.src.id; })
-	.rollup(function(values) {
-		return values.map(function(edge) { return edge.dst; }) 
-	}).entries(all_edges(nodes))
-	.map(function(entry) { return entry.value; })
+	.entries(all_edges(node_data))
+	.map(function(entry) { return entry.values; })
 }
 
 
 function all_edges(node_data) {
-	var d = nodes.data();
 	// returns edges connecting nodes given by node_data.
 	// first do cross product for all pairings of edges, then filter down to edges between nodes that are next to each other.
 	// we multiply by 3/2 to avoid floating point comparison errors.
-	return d3.cross(d, d, edge_for_nodes).filter(function(d) { return 0 < d.length && d.length <= 3/2 * radius; })
+	return d3.cross(node_data, node_data, function(n1, n2) {
+		return {
+				src: n1,
+				dst: n2,
+				length: distance(n1, n2)
+			}
+	}).filter(function(d) { return 0 < d.length && d.length <= 3/2 * radius; })
 }
 // For some reason, elegance seems to be recursion. The fact that the system looks the same at every level captures a *generalizable* pattern.
 // Very cool.
@@ -156,27 +159,33 @@ function string_edge_to_object_references(edge_str, nodes) {
 // TODO: move embedding code to preprocessor (node.js?).
 // load the json graph file
 // as per the unix philosophy, most everything is precomputed in the graph file.
-d3.json("simple_test.json", function(json) {
-	var data = json.layers[0].data;
+
+	var data = [1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1];
 
 	// bind the data to the svg line elements. (create if necc)
 
-	var	grid_width = json.layers[0].width; // get from json data
-	var	grid_height = json.layers[0].height; // get from json data
+	var	grid_width = 5; // get from json data
+	var	grid_height = 5; // get from json data
 
 	// fix 'off by 1' with the Tiled app grid.
 	var nodes = [];
 	var dataIndex = 0; // index for getting node type from the JSON array
-	
+
 		// Steps for displaying the graph:
 	// Compute coordinates for the nodes.
+
 	// Use coordinates to make edges between nodes (nodes < radius away should have edges between them)
 	// Bind node data to groups containing circle, lines representing edges, text.
 	// Bind edge data to lines
-	
+
 	// embed the graph in coordinates
 	// Q: can we roll this into something d3 / declarative? I think I need the doubly nested loop for generating the x,y coordinates?
 	// TODO: make this more declarative by zipping types, xy coords, distances
+	// Article idea: encode structure in the data, not in your code (idea from Unix).
+	// Just like choosing definitions in mathematics.
+	// Idea: what if I group node type data by rows column, then (x,y) data is already encoded. So Make
+	// it a 2D arrey with x,y *derived* properties.
+	// TODO: read more books on unix philosphy?
 	for (var y = 0; y < grid_height; y++) {
 
 		for (var x = 0; x < grid_width; x++) {
@@ -197,13 +206,19 @@ d3.json("simple_test.json", function(json) {
 		}
 	}
 
+	// second pass sets neighbors field for each node
+	// TODO: seems silly do do this separate step -- not 'transformational'. Can we somehow do it in the step
+	// when we generate the nested nodes? The idea is to use the 'src' node itself as grouping key, not its ID. IDs and indexing should be left to the computer.
+	// This idea is similar to coordinate independence.
+	var neighs = neighbors(nodes);
+	nodes.forEach(function(node, i) { node.outgoing_edges = neighs[i] });
 
 	// Q: why can't we then call d3.selectAll('svg g')? It appears we have to call selection.selectAll? Is the DOM not yet updated?
 	var svg = d3.select("body").append("svg")
 	    .attr("width", width)
 	    .attr("height", height);
 
-			
+
   // Note: it is generally a bad idea to store data in the svg elements themselves. The display information is *computed* from this stuff.
 	// Note: as such, it would be nice to have the browser console *know* about the backing data so that we can inspect the data behind each element.
 	// Currently the best way is to select the element, make it a local variable, and then call d3.select()
@@ -216,28 +231,23 @@ d3.json("simple_test.json", function(json) {
 	// 3. Reactive document for realtime update
 	// Q: is it really necessary to do select(...).selectAll? Can we do it with one xpath query.
 
-	// I had a crazy idea to treat the graph like a tree where every node is a root and the children are the immediate five neighbors.
-	// Unfortunately, I think this would require too much duplication as I would need to duplicate each edge twice and each node five times.
-	// It would be hard to link them together.
-	// why does D3 return everything nested in an array? Is there some kind of groupby command?
-	// nodes will be dotes and text (these numbers useful for debugging)
 	svg.selectAll("g")  // can we get rid of .node?
 	      .data(nodes) // indexing is via ordering in JSON file?
 	      .enter()
 	      .append("g")
-	      .attr("transform", function(d) { return "translate(" + (10 + d.cx) + ", " + (10 + d.cy) + ")" }) // embed nodes with unit radius and then scale / translate here?
+	      .attr("transform", function(d) // TODO: higher level point framework
+				{
+					return "translate(" + (10 + d.cx) + ", " + (10 + d.cy) + ")"
+			}) // embed nodes with unit radius and then scale / translate here?
 
-		// add the dots
-		// Q: why can't I select the g directly via .selectAll('svg g')? It's a doubly nested array or something.
-		// This post answers the question: https://bost.ocks.org/mike/nest/. You can't because 'html' is the parentNode when you do
-		// a direct selection.
-		// Article idea: make translation / transformation easier on yourself. Make your tools do the work for you.
+		// Article idea: make translation / transformation easier on yourself.
+		// Make your tools do the work for you. You should minimize tracking the coordinate changes. You just want to extract the insights that a different coordinate system give.
 		// TODO: look into graphics libraries for powerful functional languages.
 		// NOTE: All the joining relies heavily on the fact that the node IDs line up! That's the only way the join works. Makes me nervous.
 	svg.selectAll("g")
 	      .append("circle")
 	      .attr("r", "5")
-	     .attr("fill", function(d) {return node_colors[d.node_type]; })
+	     .attr("fill", function(d) { return node_colors[d.node_type]; })
 
 	svg.selectAll("g")
 	     .append("text")
@@ -245,20 +255,21 @@ d3.json("simple_test.json", function(json) {
 	     .attr("font", "10px sans-serif")
 		.attr("dx", 12)
 		.attr("dy", "1em")
-			.text(function(d) { return d.id; })
-	// now we can use rendered nodes to figure out the topology (neighbors)
-	var neighs = neighbors(svg.selectAll('g')); // get neighbors for all nodes
-	// TODO: this is really a join, and should be handled via data transformation instead of appending like this.
-	// We should really compute all of this *before* binding the data. Actually, we can right? We have the coordinates already computed.
-	// Ideally, all the scaling and translating should happen at the display level.
-	svg.selectAll("g").data().forEach(function(d, i) { d.neighbors = neighs[i]; })
+			.text(function(d) { return d.id + ' - ' + d.distance; })
 
-// to bind the data to the lines
-// NOTE: how do we access the parent data (the source node) when setting attributes on the children?
-// We should be able to move up and down the data hierarchy. If not, each line will need a copy of the source and dest node of the edge.
-// Where should we do the local coordinate change? Are we changing object references or not? Answer: yes, they are object references, thank god. Updating the neighbors will update the actual node.
-// What is the sort order for nested data?
-svg.selectAll('g').selectAll('line').data(function(d) { return d.neighbors; }).enter().append('line');
-});
+
+// to bind the data to the lines (note the use of hierarchical selectors to match data hierarchy)
+// NOTE: we store the 'src' node in each line data element even though we know the source is the parent
+// data element. To avoid this copying, how can we access the parent data object?
+svg.selectAll('g').selectAll('line').data(function(d) { return d.outgoing_edges; }).enter().append('line');
+
+// draw the edges relative to the source node to dst node
+// TODO: higher level point framework
+// NOTE: since we have edges going in both directions, this will double draw the lines, but that's fine.
+svg.selectAll('g line').attr('x1', 0)
+.attr('y1', 0)
+.attr('x2', function(d) { return d.dst.cx - d.src.cx; })
+.attr('y2', function(d) { return d.dst.cy - d.src.cy; })
+.attr('stroke', 'black');
 
 </script>
