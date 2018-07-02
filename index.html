@@ -57,12 +57,21 @@ function unhighlight_nodes(nodes) {
 // Article idea: vectorization in matlab and joining in d3. Similarity is declarative programming.
 // Article idea: avoiding rounding errors. Key skills are to *avoid* big time sinks, not to make optimal choices.
 // Avoid premature optimization. Sheer volume can often beat too much thinking especially when thinking has negative
-// externalities like anxiety. Avoid mental model building too quickly.
+// externalities like anxiety. Avoid mental model building too quickly. Same idea as in Computer Go, if you can just
+// brute force it, do it. Often just being able to run more trajectories is better than some clever shortcut in a specific case.
+// Brute force is *generalizable*, it requires no thought or cleverness. Time = cleverness is a limited resource, that's what one
+// should use carefully. The issue is to avoid attaching *moral* judements. This is connected to our idea of waste with moral judgements.
+// There is always waste, the art is choosing what to waste.
+// When I return from lunch, the goal is to implement the distance updating.
+// distance = foldr(min, neighbors.distance + 1) [works because min is commutative]
+// TODO: this is not a parallel operation since the state is being manipulated (there is an implicit ordering). It doesn't
+// matter because min() is a commutative operation.
+// unexplored_nodes().each(function(d) { d.distance = d.outgoing_edges -> get distances -> take minimum})
+function unexplored_nodes() {
+	d3.selectAll('g').filter(function(d) { return d.distance == Infinity; });
+}
 // Article idea: learning. Requires not just information but context == you have to be ready to absorb the information.
 // Article idea: doubt yourself / be willing to pivot rapidly. Beware of overly generalized insights.
-function has_unvisited_neighbor(node_data) {
-	return node_data.outgoing_edges.filter(function(edge) { return edge.dst.distance == Infinity; }).length > 0;
-}
 
 function all_graph_distances() {
 
@@ -71,13 +80,6 @@ function all_graph_distances() {
 		advance_wavefront();
 
 	}
-}
-
-// Q: is it really a trick that we go backwards? I suppose it allows us to calculate *all* the scores?
-function wavefront() {
-	// Q: is there a way to run Xpath or DOM queries on the visible nodes
-	// Q: should we be accessing the data through the DOM using D3 or is it ok to access it directly like this?
-	return d3.selectAll('svg g').filter(function(n) { return n.distance < Infinity && has_unvisited_neighbor(n); })
 }
 
 function nodes_in_range(id_range) {
@@ -107,33 +109,6 @@ function all_edges(node_data) {
 				length: distance(n1, n2)
 			}
 	}).filter(function(d) { return 0 < d.length && d.length <= 3/2 * radius; })
-}
-// For some reason, elegance seems to be recursion. The fact that the system looks the same at every level captures a *generalizable* pattern.
-// Very cool.
-// this looks like a fold! can every loop be reduce to a fold? TODO: turn into a fold.
-// updates the 'distance' field in every node
-function advance_wavefront() {
-
-	// for each of the nodes in the wave front, update the distance to the adjacent node.
-	wavefront().each(function(d) {
-
-		// update the neighbors adjacent to the wavefront
-		neighbors(d).each(function(neigh) {
-
-			// see if we have found a shorter path going through this node.
-			neigh.distance = Math.min(neigh.distance, node.distance + 1);
-		})
-	});
-
-	d3.selectAll('g text').text(function(d) { return d.distance; })
-}
-
-function all_distances(dst_node) {
-
-	// we add 'distance' to each node
-	dst_node.distance = 0;
-
-	var wavefront = world.nodes.filter(function(n) { return n.type == "exit"; })
 }
 
 function distance(node1, node2) {
@@ -266,6 +241,8 @@ svg.selectAll('g').selectAll('line').data(function(d) { return d.outgoing_edges;
 // draw the edges relative to the source node to dst node
 // TODO: higher level point framework
 // NOTE: since we have edges going in both directions, this will double draw the lines, but that's fine.
+// Was under .each() documentation as an example of accessing parent and child data simultaneously:
+// https://bl.ocks.org/mbostock/4c5fad723c87d2fd8273
 svg.selectAll('g line').attr('x1', 0)
 .attr('y1', 0)
 .attr('x2', function(d) { return d.dst.cx - d.src.cx; })
