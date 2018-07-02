@@ -2,6 +2,7 @@
 <meta charset="utf-8">
 <script src="http://d3js.org/d3.v2.min.js?2.9.3"></script>
 <script src="https://d3js.org/d3-collection.v1.min.js"></script>
+<script src="https://d3js.org/d3-array.v1.min.js"></script>
 <style>
 
 circle {
@@ -23,7 +24,7 @@ var node_colors = {empty: "#000", exit: "#0f0", guy: "#00f", seed: "#ff0", soft_
 function minNode(node1, node2) {
 
 	smaller = Object.assign({}, node1.distance < node2.distance ? node1 : node2);
-	
+
 	smaller.distance = Math.min(node1.distance, node2.distance);
 
 	return smaller;
@@ -37,18 +38,18 @@ function minNodes(nodes) {
 
 function highlight_nodes(nodes) {
 
-	// animate to highlighted color 
+	// animate to highlighted color
 	nodes.transition().duration(1000).ease('linear').attr('fill', function(d) { return node_colors['highlighted']; });
 }
 
-function neighbors(node) {
-	// pass in a d3 node (will be a group of text / circle) 
-	// TODO: make this robust enough to handle data or d3 node
-	d3.selectAll('svg g line').filter(function(d) { return d.src == node.data(); } );
-}
+// function neighbors(node) {
+// 	// pass in a d3 node (will be a group of text / circle)
+// 	// TODO: make this robust enough to handle data or d3 node
+// 	d3.selectAll('svg g line').filter(function(d) { return d.src == node.data(); } );
+// }
 
 function unhighlight_nodes(nodes) {
-	// animate to unhighlighted color 
+	// animate to unhighlighted color
 	nodes.transition().duration(1000).ease('linear').attr('fill', function(d) { return node_colors[n.node_type]; });
 }
 
@@ -68,35 +69,68 @@ function all_graph_distances() {
 
 // Q: is it really a trick that we go backwards? I suppose it allows us to calculate *all* the scores?
 function wavefront() {
-	// Q: is there a way to run Xpath or DOM queries on the visible nodes 
+	// Q: is there a way to run Xpath or DOM queries on the visible nodes
 	// Q: should we be accessing the data through the DOM using D3 or is it ok to access it directly like this?
 	return d3.selectAll('svg g').filter(function(n) { return n.distance < Infinity && has_unvisited_neighbor(n); })
 }
 
+function nodes_in_range(id_range) {
+	// pass in array of node ids
+  return d3.selectAll('g').filter(function(d) { return id_range.includes(d.id); });
+}
+
+function edge_for_nodes(n1, n2) {
+	return {
+			src: n1,
+			dst: n2,
+			length: distance(n1, n2)
+		}
+}
+
+function neighbors(node_data) {
+	// return [ [neighbors for node at index 0], [neighbors for node at index 1], etc]
+	return d3.nest()
+	.key(function(d) { return d.src.id; })
+	.rollup(function(values) {
+		return values.map(function(edge) { return edge.dst; }) 
+	}).entries(all_edges(nodes))
+	.map(function(entry) { return entry.value; })
+}
+
+
+function all_edges(node_data) {
+	var d = nodes.data();
+	// returns edges connecting nodes given by node_data.
+	// first do cross product for all pairings of edges, then filter down to edges between nodes that are next to each other.
+	// we multiply by 3/2 to avoid floating point comparison errors.
+	return d3.cross(d, d, edge_for_nodes).filter(function(d) { return 0 < d.length && d.length <= 3/2 * radius; })
+}
+// For some reason, elegance seems to be recursion. The fact that the system looks the same at every level captures a *generalizable* pattern.
+// Very cool.
 // this looks like a fold! can every loop be reduce to a fold? TODO: turn into a fold.
 // updates the 'distance' field in every node
 function advance_wavefront() {
-	
-	// for each of the nodes in the wave front, update the distance to the adjacent node. 
-	wavefront().each(function(d) { 
 
-		// update the neighbors adjacent to the wavefront 
-		neighbors(d).each(function(neigh) { 
+	// for each of the nodes in the wave front, update the distance to the adjacent node.
+	wavefront().each(function(d) {
+
+		// update the neighbors adjacent to the wavefront
+		neighbors(d).each(function(neigh) {
 
 			// see if we have found a shorter path going through this node.
-			neigh.distance = Math.min(neigh.distance, node.distance + 1); 
+			neigh.distance = Math.min(neigh.distance, node.distance + 1);
 		})
 	});
 
 	d3.selectAll('g text').text(function(d) { return d.distance; })
 }
 
-function all_distances(world, dst_node) { 
+function all_distances(dst_node) {
 
-	// we add 'distance' to each node 
+	// we add 'distance' to each node
 	dst_node.distance = 0;
 
-	var wavefront = world.nodes.filter(function(n) { return n.type == "exit"; })	
+	var wavefront = world.nodes.filter(function(n) { return n.type == "exit"; })
 }
 
 function distance(node1, node2) {
@@ -105,24 +139,27 @@ function distance(node1, node2) {
 
 }
 // Q: for display properties derived from the model, is it better to update the underlying model or the display?
-function euclidean_neighbors(d) {
+function euclidean_neighbors(node) {
 	// look for anything within a ball of radius 3/2.
 	// we have a factor of 3/2 to make radius just a bit bigger to avoid floating point error
 	return d3.selectAll('svg g').filter(function(neigh) { return 0 < distance(neigh, d) && distance(neigh, d) <= 3/2 * radius; } );
 }
-
+// article idea: levels of abstraction and common errors (driving in a car, you don't think through all the steps, you overestimate your own knowledge.)
 // convert a string representation of an edge to an actual edge object
 function string_edge_to_object_references(edge_str, nodes) {
-
+	return {
+		source: nodes[Number(edge_str[0])],
+		dest: nodes[Number(edge_str[2])]
+	}
 }
 
-// TODO: move embedding code to preprocessor (node.js?). 
+// TODO: move embedding code to preprocessor (node.js?).
 // load the json graph file
 // as per the unix philosophy, most everything is precomputed in the graph file.
 d3.json("simple_test.json", function(json) {
-	var data = json.layers[0].data; 
+	var data = json.layers[0].data;
 
-	// bind the data to the svg line elements. (create if necc) 
+	// bind the data to the svg line elements. (create if necc)
 
 	var	grid_width = json.layers[0].width; // get from json data
 	var	grid_height = json.layers[0].height; // get from json data
@@ -130,6 +167,13 @@ d3.json("simple_test.json", function(json) {
 	// fix 'off by 1' with the Tiled app grid.
 	var nodes = [];
 	var dataIndex = 0; // index for getting node type from the JSON array
+	
+		// Steps for displaying the graph:
+	// Compute coordinates for the nodes.
+	// Use coordinates to make edges between nodes (nodes < radius away should have edges between them)
+	// Bind node data to groups containing circle, lines representing edges, text.
+	// Bind edge data to lines
+	
 	// embed the graph in coordinates
 	// Q: can we roll this into something d3 / declarative? I think I need the doubly nested loop for generating the x,y coordinates?
 	// TODO: make this more declarative by zipping types, xy coords, distances
@@ -141,59 +185,55 @@ d3.json("simple_test.json", function(json) {
 			if (node_type != "obstacle") {
 				nodes.push({
 					node_type: node_type,
-					id: dataIndex, 
+					id: dataIndex,
 					distance: node_type == "exit" ? 0 : Infinity, // for shortest path calculations
 					cx: radius * (x + .5 * (y % 2)),
 					cy: radius * (Math.sqrt(3) / 2 * y)
 				});
 
 			}
-			
+
 			dataIndex++;
 		}
 	}
 
-	// TODO: it's annoying that we have to break the edge building into two steps. It's easier to track unique 
-	// edges as indices but easier in the code to have object references to the src / dst nodes.	
-	var lineData = d3.set();  // need a set to avoid duplicating edges
-
-	// create the edges between the nodes
-	for (var i = 0; i < nodes.length; i++) {
-		// add the neighbors (the set will ensure we don't double add edges)
-		// TODO: I still don't totally understand why we have the doubly nested array for d3 queries
-		var neighs = euclidean_neighbors(nodes[i])[0]; // find the neighbors by looking in a unit neighborhood
-
-		console.log(neighs.length)
-
-		for (var j = 0; j < neighs.length; j++) {
-
-			lineData.add([nodes[i].id, neighs[j].id].sort()); // need node indices in ascending order. we need an ordering to track uniqueness. Better to use set for two nodes?
-
-		}
-	}
-
-	lineData.add().add([0, 5]);
-	
-
-	// now convert the indices to actual object references
-	var edges = lineData.values();
 
 	// Q: why can't we then call d3.selectAll('svg g')? It appears we have to call selection.selectAll? Is the DOM not yet updated?
 	var svg = d3.select("body").append("svg")
 	    .attr("width", width)
 	    .attr("height", height);
 
+			
+  // Note: it is generally a bad idea to store data in the svg elements themselves. The display information is *computed* from this stuff.
+	// Note: as such, it would be nice to have the browser console *know* about the backing data so that we can inspect the data behind each element.
+	// Currently the best way is to select the element, make it a local variable, and then call d3.select()
+	// The problem is that there is no nice way to inspect the state that d3 carries for each SVG element. That would be a badass tool.
+	// That would be a really cool project. Related question: why doesn't d3 use the SVG metadata to store the data? Why store it internally?
+	// The point is that I want a more powerful query language for the document.
+	// I want:
+	// 1. Easy to inspect the state
+	// 2. Powerful query language both from display and data side
+	// 3. Reactive document for realtime update
 	// Q: is it really necessary to do select(...).selectAll? Can we do it with one xpath query.
+
+	// I had a crazy idea to treat the graph like a tree where every node is a root and the children are the immediate five neighbors.
+	// Unfortunately, I think this would require too much duplication as I would need to duplicate each edge twice and each node five times.
+	// It would be hard to link them together.
 	// why does D3 return everything nested in an array? Is there some kind of groupby command?
 	// nodes will be dotes and text (these numbers useful for debugging)
 	svg.selectAll("g")  // can we get rid of .node?
 	      .data(nodes) // indexing is via ordering in JSON file?
 	      .enter()
 	      .append("g")
-	      .attr("transform", function(d) { return "translate(" + (10 + d.cx) + ", " + (10 + d.cy) + ")" }); // embed nodes with unit radius and then scale / translate here?
+	      .attr("transform", function(d) { return "translate(" + (10 + d.cx) + ", " + (10 + d.cy) + ")" }) // embed nodes with unit radius and then scale / translate here?
 
 		// add the dots
 		// Q: why can't I select the g directly via .selectAll('svg g')? It's a doubly nested array or something.
+		// This post answers the question: https://bost.ocks.org/mike/nest/. You can't because 'html' is the parentNode when you do
+		// a direct selection.
+		// Article idea: make translation / transformation easier on yourself. Make your tools do the work for you.
+		// TODO: look into graphics libraries for powerful functional languages.
+		// NOTE: All the joining relies heavily on the fact that the node IDs line up! That's the only way the join works. Makes me nervous.
 	svg.selectAll("g")
 	      .append("circle")
 	      .attr("r", "5")
@@ -206,9 +246,19 @@ d3.json("simple_test.json", function(json) {
 		.attr("dx", 12)
 		.attr("dy", "1em")
 			.text(function(d) { return d.id; })
+	// now we can use rendered nodes to figure out the topology (neighbors)
+	var neighs = neighbors(svg.selectAll('g')); // get neighbors for all nodes
+	// TODO: this is really a join, and should be handled via data transformation instead of appending like this.
+	// We should really compute all of this *before* binding the data. Actually, we can right? We have the coordinates already computed.
+	// Ideally, all the scaling and translating should happen at the display level.
+	svg.selectAll("g").data().forEach(function(d, i) { d.neighbors = neighs[i]; })
 
-
+// to bind the data to the lines
+// NOTE: how do we access the parent data (the source node) when setting attributes on the children?
+// We should be able to move up and down the data hierarchy. If not, each line will need a copy of the source and dest node of the edge.
+// Where should we do the local coordinate change? Are we changing object references or not? Answer: yes, they are object references, thank god. Updating the neighbors will update the actual node.
+// What is the sort order for nested data?
+svg.selectAll('g').selectAll('line').data(function(d) { return d.neighbors; }).enter().append('line');
 });
 
 </script>
-
