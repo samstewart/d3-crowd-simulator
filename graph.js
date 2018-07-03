@@ -44,6 +44,7 @@ function load_graph(fname, callback) {
 	var type_names = ["empty", "exit", "guy", "obstacle",  "seed", "soft_obstacle"];
 	var data = [1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1];
 	data[12] = 3;
+	data[2] = 3;
 	// bind the data to the svg line elements. (create if necc)
 
 	var	grid_width = 5; // get from json data

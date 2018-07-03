@@ -4,6 +4,20 @@ function has_unexplored_nodes(node_data) {
 
 }
 
+function minNode(n1, n2) {
+	// important for folding that we break ties with n2 
+	return n2.distance <= n1.distance ? n2 : n1; 
+
+}
+
+function neighs(node_data) {
+	return node_data.outgoing_edges.map(function(d) { return d.dst });
+}
+
+function minNeighbor(node_data) {
+	// find neighbor with shortest distance to exit
+	return neighs(node_data).reduceRight(minNode, { distance: Infinity }); // a little nervous that the sentinal value is not of same type. Neighbors can never be empty?
+}
 function distances_to_neighbors(node_data) {
 	return node_data.outgoing_edges.map(function(edge) { return edge.dst.distance + 1; })
 }

@@ -3,6 +3,7 @@
 <script src="http://d3js.org/d3.v2.min.js?2.9.3"></script>
 <script src="https://d3js.org/d3-collection.v1.min.js"></script>
 <script src="https://d3js.org/d3-array.v1.min.js"></script>
+<script src="https://d3js.org/d3-timer.v1.min.js"></script>
 <script src="http://localhost:35729/livereload.js"></script>
 <script src="graph.js"></script>
 <script src="display_utils.js"></script>
@@ -14,8 +15,6 @@ circle {
 	stroke: none;
 }
 
-
-
 </style>
 <body>
 <script>
@@ -23,22 +22,8 @@ circle {
 var width = 1060,
     height = 900,
     radius = 150;
-var node_colors = {empty: "#000", exit: "#0f0", guy: "#00f", seed: "#ff0", soft_obstacle: "#0ff", highlighted: "#f00"};
-
-function minNode(n1, n2) {
-	// important for folding that we break ties with n2 
-	return n2.distance <= n1.distance ? n2 : n1; 
-
-}
-
-function neighs(node_data) {
-	return node_data.outgoing_edges.map(function(d) { return d.dst });
-}
-
-function minNeighbor(node_data) {
-	// find neighbor with shortest distance to exit
-	return neighs(node_data).reduceRight(minNode, { distance: Infinity }); // a little nervous that the sentinal value is not of same type. Neighbors can never be empty?
-}
+var node_colors = {empty: "#000", exit: "#0f0", guy: "#f0f", seed: "#ff0", soft_obstacle: "#0ff", highlighted: "#f00"};
+var node_sizes = {empty: 5, exit: 5, guy: 10, seed: 5, soft_obstacle: 5, highlighted: 5};
 
 function n(node_id) {
 	return d3.selectAll('g').filter(function(d) { return d.id == node_id });
@@ -66,11 +51,6 @@ svg.selectAll("g")
 I'm trying to do the state updating. The problem is that it is not entirely local, we need to see if a space is occupied.
 so there is global state.
 */
-svg.selectAll("g")
-      .append("circle")
-      .attr("r", "5")
-     .attr("fill", function(d) { return node_colors[d.node_type]; })
-
 
 svg.selectAll("g")
      .append("text")
@@ -89,6 +69,13 @@ svg.selectAll('g line').attr('x1', 0)
 .attr('x2', function(d) { return d.dst.cx - d.src.cx; })
 .attr('y2', function(d) { return d.dst.cy - d.src.cy; })
 .attr('stroke', 'black');
+
+// TODO: adjust the z index
+svg.selectAll("g")
+      .append("circle")
+      .attr("r", function(d) { return node_sizes[d.node_type] })
+     .attr("fill", function(d) { return node_colors[d.node_type]; })
+
 
 });
 </script>
