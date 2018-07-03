@@ -3,6 +3,11 @@
 <script src="http://d3js.org/d3.v2.min.js?2.9.3"></script>
 <script src="https://d3js.org/d3-collection.v1.min.js"></script>
 <script src="https://d3js.org/d3-array.v1.min.js"></script>
+<script src="http://localhost:35729/livereload.js"></script>
+<script src="graph.js"></script>
+<script src="display_utils.js"></script>
+<script src="guys.js"></script>
+<script src="shortest_path.js"></script>
 <style>
 
 circle {
@@ -18,235 +23,72 @@ circle {
 var width = 1060,
     height = 900,
     radius = 150;
-var type_names = ["empty", "exit", "guy", "obstacle",  "seed", "soft_obstacle"];
 var node_colors = {empty: "#000", exit: "#0f0", guy: "#00f", seed: "#ff0", soft_obstacle: "#0ff", highlighted: "#f00"};
 
-function minNode(node1, node2) {
-
-	smaller = Object.assign({}, node1.distance < node2.distance ? node1 : node2);
-
-	smaller.distance = Math.min(node1.distance, node2.distance);
-
-	return smaller;
-}
-// TODO: a custom comparator (new ordering) is only thing that's necessary.
-// Actually, we don't need with the wavefront algorithm. Look at the way we update neighbors in advance_wavefront. We do the same thing.
-function minNodes(nodes) {
-	return nodes.reduceRight(minNode);
+function minNode(n1, n2) {
+	// important for folding that we break ties with n2 
+	return n2.distance <= n1.distance ? n2 : n1; 
 
 }
 
-function highlight_nodes(nodes) {
-
-	// animate to highlighted color
-	nodes.select('circle').transition().duration(1000).ease('linear').attr('fill', node_colors['highlighted']);
+function neighs(node_data) {
+	return node_data.outgoing_edges.map(function(d) { return d.dst });
 }
 
-// function neighbors(node) {
-// 	// pass in a d3 node (will be a group of text / circle)
-// 	// TODO: make this robust enough to handle data or d3 node
-// 	d3.selectAll('svg g line').filter(function(d) { return d.src == node.data(); } );
-// }
-
-function unhighlight_nodes(nodes) {
-	// animate to unhighlighted color
-	nodes.select('circle').transition().duration(1000).ease('linear').attr('fill', function(d) { return node_colors[d.node_type]; });
+function minNeighbor(node_data) {
+	// find neighbor with shortest distance to exit
+	return neighs(node_data).reduceRight(minNode, { distance: Infinity }); // a little nervous that the sentinal value is not of same type. Neighbors can never be empty?
 }
 
-// Why isn't there an easy way to go from *data* to the d3 display nodes?
-// Article idea: vectorization in matlab and joining in d3. Similarity is declarative programming.
-// Article idea: avoiding rounding errors. Key skills are to *avoid* big time sinks, not to make optimal choices.
-// Avoid premature optimization. Sheer volume can often beat too much thinking especially when thinking has negative
-// externalities like anxiety. Avoid mental model building too quickly. Same idea as in Computer Go, if you can just
-// brute force it, do it. Often just being able to run more trajectories is better than some clever shortcut in a specific case.
-// Brute force is *generalizable*, it requires no thought or cleverness. Time = cleverness is a limited resource, that's what one
-// should use carefully. The issue is to avoid attaching *moral* judements. This is connected to our idea of waste with moral judgements.
-// There is always waste, the art is choosing what to waste.
-// When I return from lunch, the goal is to implement the distance updating.
-// distance = foldr(min, neighbors.distance + 1) [works because min is commutative]
-// TODO: this is not a parallel operation since the state is being manipulated (there is an implicit ordering). It doesn't
-// matter because min() is a commutative operation.
-// unexplored_nodes().each(function(d) { d.distance = d.outgoing_edges -> get distances -> take minimum})
-function unexplored_nodes() {
-	d3.selectAll('g').filter(function(d) { return d.distance == Infinity; });
+function n(node_id) {
+	return d3.selectAll('g').filter(function(d) { return d.id == node_id });
 }
-// Article idea: learning. Requires not just information but context == you have to be ready to absorb the information.
-// Article idea: doubt yourself / be willing to pivot rapidly. Beware of overly generalized insights.
-
-function all_graph_distances() {
-
-	while (wavefront().length > 0) {
-
-		advance_wavefront();
-
-	}
+function nd(node_id) {
+	return n(node_id).data()[0];
 }
 
-function nodes_in_range(id_range) {
-	// pass in array of node ids
-  return d3.selectAll('g').filter(function(d) { return id_range.includes(d.id); });
-}
-// Article idea: the power of *seeing* your data structures while debugging. Avoids effort of
-// having to build a mental model. Lets you manipulate them physically. Downside is bad metaphors like 'Desktop'
+load_graph('simple_test.json', function(nodes) {
 
-function neighbors(node_data) {
-	// return [ [neighbors for node at index 0], [neighbors for node at index 1], etc]
-	return d3.nest()
-	.key(function(d) { return d.src.id; })
-	.entries(all_edges(node_data))
-	.map(function(entry) { return entry.values; })
-}
+var svg = d3.select("body").append("svg")
+    .attr("width", width)
+    .attr("height", height);
 
-
-function all_edges(node_data) {
-	// returns edges connecting nodes given by node_data.
-	// first do cross product for all pairings of edges, then filter down to edges between nodes that are next to each other.
-	// we multiply by 3/2 to avoid floating point comparison errors.
-	return d3.cross(node_data, node_data, function(n1, n2) {
-		return {
-				src: n1,
-				dst: n2,
-				length: distance(n1, n2)
-			}
-	}).filter(function(d) { return 0 < d.length && d.length <= 3/2 * radius; })
-}
-
-function distance(node1, node2) {
-	// return the Euclidean distance between two nodes
-	return Math.sqrt(Math.pow(node1.cx - node2.cx, 2) + Math.pow(node1.cy - node2.cy, 2));
-
-}
-// Q: for display properties derived from the model, is it better to update the underlying model or the display?
-function euclidean_neighbors(node) {
-	// look for anything within a ball of radius 3/2.
-	// we have a factor of 3/2 to make radius just a bit bigger to avoid floating point error
-	return d3.selectAll('svg g').filter(function(neigh) { return 0 < distance(neigh, d) && distance(neigh, d) <= 3/2 * radius; } );
-}
-// article idea: levels of abstraction and common errors (driving in a car, you don't think through all the steps, you overestimate your own knowledge.)
-// convert a string representation of an edge to an actual edge object
-function string_edge_to_object_references(edge_str, nodes) {
-	return {
-		source: nodes[Number(edge_str[0])],
-		dest: nodes[Number(edge_str[2])]
-	}
-}
-
-// TODO: move embedding code to preprocessor (node.js?).
-// load the json graph file
-// as per the unix philosophy, most everything is precomputed in the graph file.
-
-	var data = [1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1];
-
-	// bind the data to the svg line elements. (create if necc)
-
-	var	grid_width = 5; // get from json data
-	var	grid_height = 5; // get from json data
-
-	// fix 'off by 1' with the Tiled app grid.
-	var nodes = [];
-	var dataIndex = 0; // index for getting node type from the JSON array
-
-		// Steps for displaying the graph:
-	// Compute coordinates for the nodes.
-
-	// Use coordinates to make edges between nodes (nodes < radius away should have edges between them)
-	// Bind node data to groups containing circle, lines representing edges, text.
-	// Bind edge data to lines
-
-	// embed the graph in coordinates
-	// Q: can we roll this into something d3 / declarative? I think I need the doubly nested loop for generating the x,y coordinates?
-	// TODO: make this more declarative by zipping types, xy coords, distances
-	// Article idea: encode structure in the data, not in your code (idea from Unix).
-	// Just like choosing definitions in mathematics.
-	// Idea: what if I group node type data by rows column, then (x,y) data is already encoded. So Make
-	// it a 2D arrey with x,y *derived* properties.
-	// TODO: read more books on unix philosphy?
-	for (var y = 0; y < grid_height; y++) {
-
-		for (var x = 0; x < grid_width; x++) {
-			var node_type = type_names[data[dataIndex] - 1]; // convert numerical code to text
-
-			if (node_type != "obstacle") {
-				nodes.push({
-					node_type: node_type,
-					id: dataIndex,
-					distance: node_type == "exit" ? 0 : Infinity, // for shortest path calculations
-					cx: radius * (x + .5 * (y % 2)),
-					cy: radius * (Math.sqrt(3) / 2 * y)
-				});
-
-			}
-
-			dataIndex++;
-		}
-	}
-
-	// second pass sets neighbors field for each node
-	// TODO: seems silly do do this separate step -- not 'transformational'. Can we somehow do it in the step
-	// when we generate the nested nodes? The idea is to use the 'src' node itself as grouping key, not its ID. IDs and indexing should be left to the computer.
-	// This idea is similar to coordinate independence.
-	var neighs = neighbors(nodes);
-	nodes.forEach(function(node, i) { node.outgoing_edges = neighs[i] });
-
-	// Q: why can't we then call d3.selectAll('svg g')? It appears we have to call selection.selectAll? Is the DOM not yet updated?
-	var svg = d3.select("body").append("svg")
-	    .attr("width", width)
-	    .attr("height", height);
+// TODO: write higher level point framework
+svg.selectAll("g")  
+      .data(nodes) 
+      .enter()
+      .append("g")
+      .attr("transform", function(d) 
+			{
+				return "translate(" + (10 + d.cx) + ", " + (10 + d.cy) + ")"
+		}) 
+/*
+I'm trying to do the state updating. The problem is that it is not entirely local, we need to see if a space is occupied.
+so there is global state.
+*/
+svg.selectAll("g")
+      .append("circle")
+      .attr("r", "5")
+     .attr("fill", function(d) { return node_colors[d.node_type]; })
 
 
-  // Note: it is generally a bad idea to store data in the svg elements themselves. The display information is *computed* from this stuff.
-	// Note: as such, it would be nice to have the browser console *know* about the backing data so that we can inspect the data behind each element.
-	// Currently the best way is to select the element, make it a local variable, and then call d3.select()
-	// The problem is that there is no nice way to inspect the state that d3 carries for each SVG element. That would be a badass tool.
-	// That would be a really cool project. Related question: why doesn't d3 use the SVG metadata to store the data? Why store it internally?
-	// The point is that I want a more powerful query language for the document.
-	// I want:
-	// 1. Easy to inspect the state
-	// 2. Powerful query language both from display and data side
-	// 3. Reactive document for realtime update
-	// Q: is it really necessary to do select(...).selectAll? Can we do it with one xpath query.
-
-	svg.selectAll("g")  // can we get rid of .node?
-	      .data(nodes) // indexing is via ordering in JSON file?
-	      .enter()
-	      .append("g")
-	      .attr("transform", function(d) // TODO: higher level point framework
-				{
-					return "translate(" + (10 + d.cx) + ", " + (10 + d.cy) + ")"
-			}) // embed nodes with unit radius and then scale / translate here?
-
-		// Article idea: make translation / transformation easier on yourself.
-		// Make your tools do the work for you. You should minimize tracking the coordinate changes. You just want to extract the insights that a different coordinate system give.
-		// TODO: look into graphics libraries for powerful functional languages.
-		// NOTE: All the joining relies heavily on the fact that the node IDs line up! That's the only way the join works. Makes me nervous.
-	svg.selectAll("g")
-	      .append("circle")
-	      .attr("r", "5")
-	     .attr("fill", function(d) { return node_colors[d.node_type]; })
-
-	svg.selectAll("g")
-	     .append("text")
-	     .attr("fill", "black")
-	     .attr("font", "10px sans-serif")
-		.attr("dx", 12)
-		.attr("dy", "1em")
-			.text(function(d) { return d.id + ' - ' + d.distance; })
+svg.selectAll("g")
+     .append("text")
+     .attr("fill", "black")
+     .attr("font", "10px sans-serif")
+	.attr("dx", 12)
+	.attr("dy", "1em")
+		.text(function(d) { return d.id + ' - ' + d.distance; })
 
 
-// to bind the data to the lines (note the use of hierarchical selectors to match data hierarchy)
-// NOTE: we store the 'src' node in each line data element even though we know the source is the parent
-// data element. To avoid this copying, how can we access the parent data object?
 svg.selectAll('g').selectAll('line').data(function(d) { return d.outgoing_edges; }).enter().append('line');
 
-// draw the edges relative to the source node to dst node
-// TODO: higher level point framework
-// NOTE: since we have edges going in both directions, this will double draw the lines, but that's fine.
-// Was under .each() documentation as an example of accessing parent and child data simultaneously:
-// https://bl.ocks.org/mbostock/4c5fad723c87d2fd8273
+// TODO: look at example to tie together parent data with child to avoid copying. Not super important now. https://bl.ocks.org/mbostock/4c5fad723c87d2fd8273
 svg.selectAll('g line').attr('x1', 0)
 .attr('y1', 0)
 .attr('x2', function(d) { return d.dst.cx - d.src.cx; })
 .attr('y2', function(d) { return d.dst.cy - d.src.cy; })
 .attr('stroke', 'black');
 
+});
 </script>
