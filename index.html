@@ -9,12 +9,26 @@
 <script src="display_utils.js"></script>
 <script src="guys.js"></script>
 <script src="shortest_path.js"></script>
+<script src="shortcuts.js"></script>
+<script src="keyhandlers.js"></script>
 <style>
 
 circle {
 	stroke: none;
 }
 
+circle.guy {
+	fill: #f0f;
+	transform: scale(2);
+}
+
+circle.exit {
+	fill: #0f0;
+}
+
+line {
+	stroke: black;
+}
 </style>
 <body>
 <script>
@@ -22,15 +36,8 @@ circle {
 var width = 1060,
     height = 900,
     radius = 150;
-var node_colors = {empty: "#000", exit: "#0f0", guy: "#f0f", seed: "#ff0", soft_obstacle: "#0ff", highlighted: "#f00"};
-var node_sizes = {empty: 5, exit: 5, guy: 10, seed: 5, soft_obstacle: 5, highlighted: 5};
+// var node_colors = {empty: "#000", exit: "#0f0", guy: "#f0f", seed: "#ff0", soft_obstacle: "#0ff", highlighted: "#f00"};
 
-function n(node_id) {
-	return d3.selectAll('g').filter(function(d) { return d.id == node_id });
-}
-function nd(node_id) {
-	return n(node_id).data()[0];
-}
 
 load_graph('simple_test.json', function(nodes) {
 
@@ -54,11 +61,9 @@ so there is global state.
 
 svg.selectAll("g")
      .append("text")
-     .attr("fill", "black")
-     .attr("font", "10px sans-serif")
-	.attr("dx", 12)
-	.attr("dy", "1em")
-		.text(function(d) { return d.id + ' - ' + d.distance; })
+     .attr("dx", 12)
+     .attr("dy", "1em")
+	.text(function(d) { return d.id + ' - ' + d.distance; })
 
 
 svg.selectAll('g').selectAll('line').data(function(d) { return d.outgoing_edges; }).enter().append('line');
@@ -68,14 +73,21 @@ svg.selectAll('g line').attr('x1', 0)
 .attr('y1', 0)
 .attr('x2', function(d) { return d.dst.cx - d.src.cx; })
 .attr('y2', function(d) { return d.dst.cy - d.src.cy; })
-.attr('stroke', 'black');
 
 // TODO: adjust the z index
 svg.selectAll("g")
       .append("circle")
-      .attr("r", function(d) { return node_sizes[d.node_type] })
-     .attr("fill", function(d) { return node_colors[d.node_type]; })
+      .attr("r", 10)
+      .attr("class", function(d) { return d.node_type; })
 
 
 });
+
+	d3.selectAll('circle').on('click', function(d) { 
+		d.node_type = 'guy'; 
+		d3.select(this).attr('class', 'guy');	
+	})
+
+
 </script>
+</body>
