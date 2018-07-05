@@ -8,9 +8,10 @@ function nodes_in_range(id_range) {
 function all_neighbors(node_data, spacing) {
 	// return [ [neighbors for node at index 0], [neighbors for node at index 1], etc]
 	return d3.nest()
-	.key(function(d) { return d.src.id; })
-	.entries(all_edges(node_data, spacing))
-	.map(function(entry) { return entry.values; })
+		.key(d => d.src.id)
+		.rollup(values => values.map(v => v.dst))
+		.entries(all_edges(node_data, spacing))
+		.map(p => p.value)
 }
 
 
@@ -30,13 +31,13 @@ function all_edges(node_data, spacing) {
 function delete_node(node) {
 	var node_data = node.datum();
 
-	node_data.outgoing_edges.forEach(edge => {
+	node_data.neighbors.forEach(n => {
 
-		edge.dst.delete_neighbor(node_data); // delete incoming edges in the model
-
+		n.delete_neighbor(node_data); // delete incoming edges in the model
 		
 	});
-	
+
+	// get rid of actual node in the data
 	var ds = d3.selectAll('g').data().filter(function(d) { return d.id != node_data.id });
 
 	// rebind
@@ -45,16 +46,10 @@ function delete_node(node) {
 	.exit()
 	.remove();
 
-	// get rid of any old lines representing these edges
-	// TODO: I don't want to have to update the entire graph, can I do it just for this element or does that contradict the style of d3?
-	d3.select('svg')
-	.selectAll('g')
-	.selectAll('line')
-	.data(function(d) { return d.outgoing_edges; }, function(d) { return d.dst.id; })
-	.exit()
-	.remove();
-
-
+	// recompute shorest paths
+	compute_shortest_path_distances(ds);
+	
+	d3.selectAll('text').text(function(d) { return d.id + ' - ' + d.distance; })
 
 }
 
@@ -70,7 +65,6 @@ function load_graph(fname, callback) {
 	var data = [1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1];
 	data[12] = 3;
 	data[2] = 3;
-	
 	// bind the data to the svg line elements. (create if necc)
 
 	var	grid_width = 5; // get from json data
@@ -93,9 +87,7 @@ function load_graph(fname, callback) {
 					cx: spacing / 2 + spacing * (x + .5 * (y % 2)),
 					cy: spacing / 2 + spacing * (Math.sqrt(3) / 2 * y),
 					delete_neighbor: function(neigh) {
-						this.outgoing_edges = this.outgoing_edges.filter(function(edge) { return edge.dst.id != neigh.id; });
-						
-						
+						this.neighbors = this.neighbors.filter(function(n) { return n.id != neigh.id; });
 					}
 				});
 
@@ -108,9 +100,9 @@ function load_graph(fname, callback) {
 	var neighs = all_neighbors(nodes, spacing);
 
 	// TODO: roll into transformation generating the neighbors. Generate all the data at once. 
-	nodes.forEach(function(node, i) { node.outgoing_edges = neighs[i] });
+	nodes.forEach(function(node, i) { node.neighbors = neighs[i] });
 
-	compute_shortest_path_distances(nodes);
+	// compute_shortest_path_distances(nodes);
 
 	callback(nodes, grid_width, grid_height, spacing);
 }

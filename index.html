@@ -3,6 +3,7 @@
 <script src="http://d3js.org/d3.v2.min.js?2.9.3"></script>
 <script src="https://d3js.org/d3-collection.v1.min.js"></script>
 <script src="https://d3js.org/d3-array.v1.min.js"></script>
+<script src="http://chancejs.com/chance.min.js"></script>
 <script src="https://d3js.org/d3-timer.v1.min.js"></script>
 <script src="http://localhost:35729/livereload.js"></script>
 <script src="graph.js"></script>
@@ -70,24 +71,10 @@ svg.selectAll("g")
 	.text(function(d) { return d.id + ' - ' + d.distance; })
 
 
-svg.selectAll('g')
-.selectAll('line')
-.data(function(d) { return d.outgoing_edges; }, function(d) { return d.dst.id; })
-.enter().append('line');
-
-// TODO: look at example to tie together parent data with child to avoid copying. Not super important now. https://bl.ocks.org/mbostock/4c5fad723c87d2fd8273
-svg.selectAll('g line')
-.attr('x1', 0)
-.attr('y1', 0)
-.attr('x2', function(d) { return d.dst.cx - d.src.cx; })
-.attr('y2', function(d) { return d.dst.cy - d.src.cy; })
-
-// TODO: adjust the z index
 svg.selectAll("g")
       .append("circle")
       .attr("r", 10)
       .attr("class", function(d) { return d.node_type; })
-
 
 });
 
