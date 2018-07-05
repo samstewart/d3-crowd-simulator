@@ -5,16 +5,16 @@ function nodes_in_range(id_range) {
 // Article idea: the power of *seeing* your data structures while debugging. Avoids effort of
 // having to build a mental model. Lets you manipulate them physically. Downside is bad metaphors like 'Desktop'
 // TODO: move into own namespace
-function all_neighbors(node_data) {
+function all_neighbors(node_data, spacing) {
 	// return [ [neighbors for node at index 0], [neighbors for node at index 1], etc]
 	return d3.nest()
 	.key(function(d) { return d.src.id; })
-	.entries(all_edges(node_data))
+	.entries(all_edges(node_data, spacing))
 	.map(function(entry) { return entry.values; })
 }
 
 
-function all_edges(node_data) {
+function all_edges(node_data, spacing) {
 	// returns edges connecting nodes given by node_data.
 	// first do cross product for all pairings of edges, then filter down to edges between nodes that are next to each other.
 	// we multiply by 3/2 to avoid floating point comparison errors.
@@ -24,7 +24,38 @@ function all_edges(node_data) {
 				dst: n2,
 				length: distance(n1, n2)
 			}
-	}).filter(function(d) { return 0 < d.length && d.length <= 3/2 * radius; })
+	}).filter(function(d) { return 0 < d.length && d.length <= 3/2 * spacing; })
+}
+
+function delete_node(node) {
+	var node_data = node.datum();
+
+	node_data.outgoing_edges.forEach(edge => {
+
+		edge.dst.delete_neighbor(node_data); // delete incoming edges in the model
+
+		
+	});
+	
+	var ds = d3.selectAll('g').data().filter(function(d) { return d.id != node_data.id });
+
+	// rebind
+	d3.selectAll('g')
+	.data(ds, function(d) { return d.id; })
+	.exit()
+	.remove();
+
+	// get rid of any old lines representing these edges
+	// TODO: I don't want to have to update the entire graph, can I do it just for this element or does that contradict the style of d3?
+	d3.select('svg')
+	.selectAll('g')
+	.selectAll('line')
+	.data(function(d) { return d.outgoing_edges; }, function(d) { return d.dst.id; })
+	.exit()
+	.remove();
+
+
+
 }
 
 function distance(node1, node2) {
@@ -33,23 +64,19 @@ function distance(node1, node2) {
 
 }
 
-// Q: for display properties derived from the model, is it better to update the underlying model or the display?
-function euclidean_neighbors(node) {
-	// look for anything within a ball of radius 3/2.
-	// we have a factor of 3/2 to make radius just a bit bigger to avoid floating point error
-	return d3.selectAll('svg g').filter(function(neigh) { return 0 < distance(neigh, d) && distance(neigh, d) <= 3/2 * radius; } );
-}
 
 function load_graph(fname, callback) {
 	var type_names = ["empty", "exit", "guy", "obstacle",  "seed", "soft_obstacle"];
 	var data = [1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1];
 	data[12] = 3;
 	data[2] = 3;
+	
 	// bind the data to the svg line elements. (create if necc)
 
 	var	grid_width = 5; // get from json data
 	var	grid_height = 5; // get from json data
-
+	
+	var spacing = 800 / (grid_width + 1); 
 	var nodes = [];
 	var dataIndex = 0; // index for getting node type from the JSON array
 
@@ -63,8 +90,13 @@ function load_graph(fname, callback) {
 					node_type: node_type,
 					id: dataIndex,
 					distance: node_type == "exit" ? 0 : Infinity, // for shortest path calculations
-					cx: radius * (x + .5 * (y % 2)),
-					cy: radius * (Math.sqrt(3) / 2 * y)
+					cx: spacing / 2 + spacing * (x + .5 * (y % 2)),
+					cy: spacing / 2 + spacing * (Math.sqrt(3) / 2 * y),
+					delete_neighbor: function(neigh) {
+						this.outgoing_edges = this.outgoing_edges.filter(function(edge) { return edge.dst.id != neigh.id; });
+						
+						
+					}
 				});
 
 			}
@@ -73,12 +105,12 @@ function load_graph(fname, callback) {
 		}
 	}
 
-	var neighs = all_neighbors(nodes);
+	var neighs = all_neighbors(nodes, spacing);
 
 	// TODO: roll into transformation generating the neighbors. Generate all the data at once. 
 	nodes.forEach(function(node, i) { node.outgoing_edges = neighs[i] });
 
 	compute_shortest_path_distances(nodes);
 
-	callback(nodes)
+	callback(nodes, grid_width, grid_height, spacing);
 }

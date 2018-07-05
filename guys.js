@@ -2,23 +2,19 @@
 function move_guy_to_exit(node_data) {
 	var new_guy = minNode(node_data, minNeighbor(node_data));  // we could stay put
 
-	if (new_guy.node_type != 'guy') {
+	if (new_guy.node_type != 'guy' || new_guy.distance == 0) { // if we're moving to an exit, it's ok that there's a pile of guys 
 
 		node_data.node_type = 'empty';
-
-		if (new_guy.node_type != 'exit') {
-			// if it's an exit, make this guy disappear
-			new_guy.node_type = 'guy';
-			
-		}
+		new_guy.node_type = 'guy'; // this will turn an exit into a guy, but not a problem since we're just following the gradient field
+		
 	}
 	
-	d3.selectAll('g circle').attr('class', function(d) { return d.node_type; });
+	d3.selectAll('g circle').attr('class', (d) => { return d.node_type; });
 }
 
-function has_guys() {
+function has_guys_away_from_exit() {
 
-	return ! d3.selectAll('.guy').empty();
+	return ! d3.selectAll('.guy').filter((d) => { return d.distance > 0; }).empty();
 
 }
 
@@ -26,7 +22,7 @@ function move_guys_to_exit() {
 	
 	var t0 = d3.interval(function(elapsed) {
 
-		if (has_guys()) {
+		if (has_guys_away_from_exit()) {
 				
 			d3.selectAll('g circle.guy').each(move_guy_to_exit);
 
@@ -36,6 +32,6 @@ function move_guys_to_exit() {
 
 	}, 1000);
 
-
+	return t0;
 }
 

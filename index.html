@@ -24,36 +24,40 @@ circle.guy {
 
 circle.exit {
 	fill: #0f0;
+	transform: scale(1);
 }
-
 line {
 	stroke: black;
 }
 </style>
 <body>
+	<p>
+		<button id="start_btn">Start</button>
+		<button id="stop_btn">Stop</button>
+	</p>
+<svg width="800" height="600" style="background-color: #f00"></svg>
 <script>
-// global constants
-var width = 1060,
-    height = 900,
-    radius = 150;
 // var node_colors = {empty: "#000", exit: "#0f0", guy: "#f0f", seed: "#ff0", soft_obstacle: "#0ff", highlighted: "#f00"};
+d3.select('#start_btn').on('click', function(d) {
+	// yikes, not sure this is good design?
+	var t0 = move_guys_to_exit();
+	d3.select('#stop_btn').on('click', function(d) {
+		t0.stop();
+	})
+})
 
+var lastSelected = null;
 
-load_graph('simple_test.json', function(nodes) {
-
-var svg = d3.select("body").append("svg")
-    .attr("width", width)
-    .attr("height", height);
+load_graph('simple_test.json', function(nodes, grid_width, grid_height, radius) {
+// global constants
+var svg = d3.select("svg")
 
 // TODO: write higher level point framework
 svg.selectAll("g")  
-      .data(nodes) 
+	.data(nodes, function(d) { return d.id; }) // to track deletions, we need a good key.
       .enter()
       .append("g")
-      .attr("transform", function(d) 
-			{
-				return "translate(" + (10 + d.cx) + ", " + (10 + d.cy) + ")"
-		}) 
+      .attr("transform", function(d) { return "translate(" + d.cx + ", " + d.cy + ")" }) 
 /*
 I'm trying to do the state updating. The problem is that it is not entirely local, we need to see if a space is occupied.
 so there is global state.
@@ -66,7 +70,10 @@ svg.selectAll("g")
 	.text(function(d) { return d.id + ' - ' + d.distance; })
 
 
-svg.selectAll('g').selectAll('line').data(function(d) { return d.outgoing_edges; }).enter().append('line');
+svg.selectAll('g')
+.selectAll('line')
+.data(function(d) { return d.outgoing_edges; }, function(d) { return d.dst.id; })
+.enter().append('line');
 
 // TODO: look at example to tie together parent data with child to avoid copying. Not super important now. https://bl.ocks.org/mbostock/4c5fad723c87d2fd8273
 svg.selectAll('g line').attr('x1', 0)
@@ -83,10 +90,23 @@ svg.selectAll("g")
 
 });
 
-	d3.selectAll('circle').on('click', function(d) { 
-		d.node_type = 'guy'; 
-		d3.select(this).attr('class', 'guy');	
-	})
+d3.select(window).on('keydown', function() {
+	d3.event.preventDefault();
+
+	if (d3.event.keyCode == 69) { // 'e' is the delete key
+		console.log(lastSelected)
+		if (lastSelected) {
+			delete_node(lastSelected)
+		}			
+	}
+})
+d3.selectAll('circle').on('click', function(d) { 
+	var new_type = d.node_type == 'empty' ? 'guy' : 'empty';
+	d.node_type = new_type; 
+	d3.select(this).attr('class', new_type);	
+
+	lastSelected = d3.select(this);
+})
 
 
 </script>
