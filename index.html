@@ -76,7 +76,8 @@ svg.selectAll('g')
 .enter().append('line');
 
 // TODO: look at example to tie together parent data with child to avoid copying. Not super important now. https://bl.ocks.org/mbostock/4c5fad723c87d2fd8273
-svg.selectAll('g line').attr('x1', 0)
+svg.selectAll('g line')
+.attr('x1', 0)
 .attr('y1', 0)
 .attr('x2', function(d) { return d.dst.cx - d.src.cx; })
 .attr('y2', function(d) { return d.dst.cy - d.src.cy; })
