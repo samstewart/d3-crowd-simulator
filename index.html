@@ -32,20 +32,9 @@ line {
 }
 </style>
 <body>
-	<p>
-		<button id="start_btn">Start</button>
-		<button id="stop_btn">Stop</button>
-	</p>
-<svg width="800" height="600" style="background-color: #f00"></svg>
+<svg width="800" height="600" ></svg>
 <script>
 // var node_colors = {empty: "#000", exit: "#0f0", guy: "#f0f", seed: "#ff0", soft_obstacle: "#0ff", highlighted: "#f00"};
-d3.select('#start_btn').on('click', function(d) {
-	// yikes, not sure this is good design?
-	var t0 = move_guys_to_exit();
-	d3.select('#stop_btn').on('click', function(d) {
-		t0.stop();
-	})
-})
 
 var lastSelected = null;
 
@@ -78,11 +67,30 @@ svg.selectAll("g")
 
 });
 
+var simulation_history = [];
 d3.select(window).on('keydown', function() {
 	d3.event.preventDefault();
+	
+	//console.log(d3.event.keyCode)
 
+	if (d3.event.keyCode == 39) { // right arrow 
+		if (has_guys_away_from_exit()) {
+			simulation_history.push(move_guys_to_exit());
+		}
+
+	}
+	if (d3.event.keyCode == 37) { // left arrow 
+
+		if (simulation_history.length > 0) {
+			var types = simulation_history.pop();
+
+			d3.selectAll("g").each((d, i) => d.node_type = types[i]);
+			d3.selectAll("g circle").attr('class', d => d.node_type);
+		}
+	}
 	if (d3.event.keyCode == 69) { // 'e' is the delete key
 		console.log(lastSelected)
+
 		if (lastSelected) {
 			delete_node(lastSelected)
 		}			

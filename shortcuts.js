@@ -1,6 +1,10 @@
 function n(node_descriptor) {
 	var ids = null;
 	
+	if (node_descriptor.constructor.name == "Number") {
+		node_descriptor = "" + node_descriptor; // convert to string
+	}
+
 	// range of IDs
 	if (node_descriptor.match(/-/)) {
 		ids = node_descriptor.match(/\d+/g).map(Number);	
@@ -16,6 +20,11 @@ function n(node_descriptor) {
 	if (node_descriptor == '*') {
 		return d3.selectAll('g');
 	}
+	
+	// if nothing else, then a single id?
+	if (node_descriptor.match(/^\d+$/)) {
+		ids = [ Number(node_descriptor) ];
+	}
 
 	// a random choice of nodes within a range
 	// syntax is: 2r1-5 where first number is percentage of range 
@@ -30,8 +39,19 @@ function n(node_descriptor) {
 }
 
 function nd(node_id) {
-	return n(node_id).data();
+	var d = n(node_id).data();
+
+	return d.length == 1 ? d[0] : d;
 }
 function s(selector) {
 	return d3.selectAll(selector);
 }
+
+function dn(node_descriptor) {
+}
+function update_text() {
+
+	s('g text').text(function(d) { return d.id + ' - ' + d.distance; })
+}
+var high = highlight_nodes;
+var unhigh = unhighlight_nodes;

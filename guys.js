@@ -1,4 +1,5 @@
 
+
 function move_guy_to_exit(node_data) {
 	var new_guy = minNode(node_data, minNeighbor(node_data));  // we could stay put
 
@@ -18,20 +19,17 @@ function has_guys_away_from_exit() {
 
 }
 
+
 function move_guys_to_exit() {
 	
-	var t0 = d3.interval(function(elapsed) {
+	var last_state = d3.selectAll('g').data().map(d => d.node_type);
 
-		if (has_guys_away_from_exit()) {
-				
-			d3.selectAll('g circle.guy').each(move_guy_to_exit);
+	if (has_guys_away_from_exit()) {
 
-		} else {
-			t0.stop();
-		}
+		d3.selectAll('g circle.guy').each(move_guy_to_exit);
 
-	}, 1000);
+	} 
 
-	return t0;
+	return last_state;
 }
 

@@ -102,7 +102,7 @@ function load_graph(fname, callback) {
 	// TODO: roll into transformation generating the neighbors. Generate all the data at once. 
 	nodes.forEach(function(node, i) { node.neighbors = neighs[i] });
 
-	// compute_shortest_path_distances(nodes);
+	compute_shortest_path_distances(nodes);
 
 	callback(nodes, grid_width, grid_height, spacing);
 }
