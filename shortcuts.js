@@ -37,6 +37,19 @@ function n(node_descriptor) {
 	}
 	return d3.selectAll('g').filter(function(d) { return ids.includes(d.id); });
 }
+function dn(node_id) {
+	delete_node(n(node_id))
+}
+function exit(node) {
+	node.datum().distance = 0;
+	node.datum().node_type = 'exit';
+
+	update_node_classes();
+
+	compute_shortest_path_distances(d3.selectAll('g').data());
+
+	update_text();
+}
 
 function nd(node_id) {
 	var d = n(node_id).data();
@@ -47,7 +60,21 @@ function s(selector) {
 	return d3.selectAll(selector);
 }
 
-function dn(node_descriptor) {
+function guys(nodes) {
+	nodes.each(d => d.node_type = 'guy');
+
+	update_node_classes();
+}
+
+function reset() {
+	n('*').each(d => d.node_type = d.node_type == 'exit' ? 'exit' : 'empty');
+
+	update_node_classes();
+}
+function update_node_classes() {
+
+	d3.selectAll('g circle').attr('class', d => d.node_type);
+
 }
 function update_text() {
 

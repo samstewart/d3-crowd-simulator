@@ -30,17 +30,20 @@ circle.exit {
 line {
 	stroke: black;
 }
+		text { fill: none; }
 </style>
 <body>
-<svg width="800" height="600" ></svg>
+<svg width="600" height="600" ></svg>
 <script>
 // var node_colors = {empty: "#000", exit: "#0f0", guy: "#f0f", seed: "#ff0", soft_obstacle: "#0ff", highlighted: "#f00"};
 
 var lastSelected = null;
 
-load_graph('simple_test.json', function(nodes, grid_width, grid_height, radius) {
+
 // global constants
 var svg = d3.select("svg")
+
+var nodes = make_graph(Number(svg.attr('width')), Number(svg.attr('height')), 50, 50);
 
 // TODO: write higher level point framework
 svg.selectAll("g")  
@@ -62,11 +65,10 @@ svg.selectAll("g")
 
 svg.selectAll("g")
       .append("circle")
-      .attr("r", 10)
+	.attr("r", d => d.radius)
       .attr("class", function(d) { return d.node_type; })
 
-});
-
+exit(n(0))
 var simulation_history = [];
 d3.select(window).on('keydown', function() {
 	d3.event.preventDefault();
@@ -89,13 +91,14 @@ d3.select(window).on('keydown', function() {
 		}
 	}
 	if (d3.event.keyCode == 69) { // 'e' is the delete key
-		console.log(lastSelected)
 
 		if (lastSelected) {
 			delete_node(lastSelected)
+			lastSelected = null;
 		}			
 	}
 })
+
 d3.selectAll('circle').on('click', function(d) { 
 	var new_type = d.node_type == 'empty' ? 'guy' : 'empty';
 	d.node_type = new_type; 

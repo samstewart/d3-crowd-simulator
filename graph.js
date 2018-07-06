@@ -60,38 +60,27 @@ function distance(node1, node2) {
 }
 
 
-function load_graph(fname, callback) {
-	var type_names = ["empty", "exit", "guy", "obstacle",  "seed", "soft_obstacle"];
-	var data = [1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1];
-	data[12] = 3;
-	data[2] = 3;
-	// bind the data to the svg line elements. (create if necc)
-
-	var	grid_width = 5; // get from json data
-	var	grid_height = 5; // get from json data
+function make_graph(svg_width, svg_height, grid_width, grid_height) {
 	
-	var spacing = 800 / (grid_width + 1); 
+	var spacing = svg_width / (grid_width + 1); 
 	var nodes = [];
 	var dataIndex = 0; // index for getting node type from the JSON array
 
 	for (var y = 0; y < grid_height; y++) {
 
 		for (var x = 0; x < grid_width; x++) {
-			var node_type = type_names[data[dataIndex] - 1]; // convert numerical code to text
+			nodes.push({
+				node_type: 'empty',
+				id: dataIndex,
+				distance: Infinity, // for shortest path calculations
+				cx: spacing / 2 + spacing * (x + .5 * (y % 2)),
+				cy: spacing / 2 + spacing * (Math.sqrt(3) / 2 * y),
+				radius: spacing / 10,
+				delete_neighbor: function(neigh) {
+					this.neighbors = this.neighbors.filter(function(n) { return n.id != neigh.id; });
+				}
+			});
 
-			if (node_type != "obstacle") {
-				nodes.push({
-					node_type: node_type,
-					id: dataIndex,
-					distance: node_type == "exit" ? 0 : Infinity, // for shortest path calculations
-					cx: spacing / 2 + spacing * (x + .5 * (y % 2)),
-					cy: spacing / 2 + spacing * (Math.sqrt(3) / 2 * y),
-					delete_neighbor: function(neigh) {
-						this.neighbors = this.neighbors.filter(function(n) { return n.id != neigh.id; });
-					}
-				});
-
-			}
 
 			dataIndex++;
 		}
@@ -101,8 +90,6 @@ function load_graph(fname, callback) {
 
 	// TODO: roll into transformation generating the neighbors. Generate all the data at once. 
 	nodes.forEach(function(node, i) { node.neighbors = neighs[i] });
-
-	compute_shortest_path_distances(nodes);
-
-	callback(nodes, grid_width, grid_height, spacing);
+	
+	return nodes;
 }
