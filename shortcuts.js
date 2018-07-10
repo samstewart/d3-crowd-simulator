@@ -35,11 +35,14 @@ function n(node_descriptor) {
 
 		ids = chance.pickset(ids, Math.round(ids.length * subset / 100));
 	}
+
 	return d3.selectAll('g').filter(function(d) { return ids.includes(d.id); });
 }
+
 function dn(node_id) {
-	delete_node(n(node_id))
+	n(node_id).each(delete_node);
 }
+
 function exit(node) {
 	node.datum().distance = 0;
 	node.datum().node_type = 'exit';

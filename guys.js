@@ -22,10 +22,11 @@ function has_guys_away_from_exit() {
 
 function move_guys_to_exit() {
 	
+	// track the types of the last nodes
 	var last_state = d3.selectAll('g').data().map(d => d.node_type);
 
 	if (has_guys_away_from_exit()) {
-
+		
 		d3.selectAll('g circle.guy').each(move_guy_to_exit);
 
 	} 

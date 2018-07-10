@@ -30,7 +30,6 @@ circle.exit {
 line {
 	stroke: black;
 }
-		text { fill: none; }
 </style>
 <body>
 <svg width="600" height="600" ></svg>
@@ -43,32 +42,42 @@ var lastSelected = null;
 // global constants
 var svg = d3.select("svg")
 
-var nodes = make_graph(Number(svg.attr('width')), Number(svg.attr('height')), 50, 50);
-
+var nodes = make_graph(Number(svg.attr('width')), Number(svg.attr('height')), 2);
+console.log(nodes)
 // TODO: write higher level point framework
-svg.selectAll("g")  
-	.data(nodes, function(d) { return d.id; }) // to track deletions, we need a good key.
+var row_groups = svg.selectAll("g")  
+	.data(nodes) 
       .enter()
       .append("g")
-      .attr("transform", function(d) { return "translate(" + d.cx + ", " + d.cy + ")" }) 
+
+row_groups.attr('transform', d => d.offset_for_row())
 /*
 I'm trying to do the state updating. The problem is that it is not entirely local, we need to see if a space is occupied.
 so there is global state.
 */
 
-svg.selectAll("g")
+function node_label(d) {
+	return `(${d.index.join(',')}): ${d.distance}`
+}
+
+row_groups.selectAll('g')
+	.data(d => d.nodes_in_rows)
+	.enter()
+	.append('g')
+	.attr('transform', d => d.offset_within_row() )
+
+row_groups.selectAll("g")
      .append("text")
      .attr("dx", 12)
-     .attr("dy", "1em")
-	.text(function(d) { return d.id + ' - ' + d.distance; })
+     .attr("dy", "2em")
+     .text(node_label)
 
 
-svg.selectAll("g")
+row_gruops.selectAll("g")
       .append("circle")
 	.attr("r", d => d.radius)
       .attr("class", function(d) { return d.node_type; })
 
-exit(n(0))
 var simulation_history = [];
 d3.select(window).on('keydown', function() {
 	d3.event.preventDefault();
@@ -93,13 +102,19 @@ d3.select(window).on('keydown', function() {
 	if (d3.event.keyCode == 69) { // 'e' is the delete key
 
 		if (lastSelected) {
-			delete_node(lastSelected)
+			delete_node(lastSelected.datum())
 			lastSelected = null;
 		}			
 	}
 })
 
+d3.select('svg').on('click', function(d) {
+	var click_point = d3.mouse(this);
+	
+	console.log(click_point)
+})
 d3.selectAll('circle').on('click', function(d) { 
+	console.log('clicked')
 	var new_type = d.node_type == 'empty' ? 'guy' : 'empty';
 	d.node_type = new_type; 
 	d3.select(this).attr('class', new_type);	
@@ -107,6 +122,7 @@ d3.selectAll('circle').on('click', function(d) {
 	lastSelected = d3.select(this);
 })
 
+// demo stuff
 
 </script>
 </body>
