@@ -1,42 +1,44 @@
+
 function n(node_descriptor) {
+	// main method for querying nodes
+	// 0,1 : node with x = 0 y = 1
+	// 0-2,0-3 : nodes with x in range 0,2 and y in range 0,3
+	// * or *,* : all nodes
+	// *,0-3 or 0-3,* : nodes with any x coordinate and y in range 0,3, likewise for x
+	// 20% of [any of the above] : random 20% subset of any of the above ranges
+	// todo: use a real parser to create a real grammar?	
 	var ids = null;
-	
-	if (node_descriptor.constructor.name == "Number") {
-		node_descriptor = "" + node_descriptor; // convert to string
+
+	function parse_coordinates(values) {
+		return d3.cross(parse_range(values[0]), parse_range(values[1]), (n, m) => [n,m].toString());
 	}
 
-	// range of IDs
-	if (node_descriptor.match(/-/)) {
-		ids = node_descriptor.match(/\d+/g).map(Number);	
-		ids = d3.range(ids[0], ids[1] + 1);
+	function random_node_subset(nodes, percentage) {
+		var nodes = nodes[0];
+		// two cases (this is a strange node.js design decision -- I should ask on the forums).
+		// either single entry or list of entries. handle it.
+		return chance.pickset(nodes, Math.round(percentage * set.length);
 	}
 	
-	// list of ids
-	if (node_descriptor.match(/,/)) {
-		ids = node_descriptor.match(/\d+/g).map(Number);	
-	}
-	
-	// all the nodes
-	if (node_descriptor == '*') {
-		return d3.selectAll('g');
-	}
-	
-	// if nothing else, then a single id?
-	if (node_descriptor.match(/^\d+$/)) {
-		ids = [ Number(node_descriptor) ];
+	function ids_to_nodes(ids) {
+		// kinda inefficient?
+		d3.selectAll('g g').filter(d => ids.includes(d.index));
 	}
 
-	// a random choice of nodes within a range
-	// syntax is: 2r1-5 where first number is percentage of range 
-	if (node_descriptor.match(/r/)) {
-		ids = node_descriptor.match(/\d+/g).map(Number);	
-		var subset = ids[0];
-		ids = d3.range(ids[1], ids[2] + 1);
-
-		ids = chance.pickset(ids, Math.round(ids.length * subset / 100));
+	function exec_rule_for_string(str, rules) {
+		
+	}
+	// so now we have two languages, a meta and a node language! cool.
+	// pattern matching engine
+	// * : wild card for non-greedy match
+	// # : do * match but then feed it into the rule system and return the results.
+	var rules = { 
+		'*,*' : values => [ ids_to_nodes(parse_coordinates(values)) ],
+		'\*' : values => d3.selectAll('g g'),
+		'*% of #' : values => [ random_subset(values[1], Number(values[0]) / 100) ]
 	}
 
-	return d3.selectAll('g').filter(function(d) { return ids.includes(d.id); });
+	return exec_rule_for_string(node_descriptor, rules);
 }
 
 function dn(node_id) {

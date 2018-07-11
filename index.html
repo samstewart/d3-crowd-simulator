@@ -42,8 +42,7 @@ var lastSelected = null;
 // global constants
 var svg = d3.select("svg")
 
-var nodes = make_graph(Number(svg.attr('width')), Number(svg.attr('height')), 2);
-console.log(nodes)
+var nodes = make_graph(Number(svg.attr('width')), Number(svg.attr('height')), 6);
 // TODO: write higher level point framework
 var row_groups = svg.selectAll("g")  
 	.data(nodes) 
@@ -61,7 +60,7 @@ function node_label(d) {
 }
 
 row_groups.selectAll('g')
-	.data(d => d.nodes_in_rows)
+	.data(d => d.nodes_in_row)
 	.enter()
 	.append('g')
 	.attr('transform', d => d.offset_within_row() )
@@ -70,12 +69,14 @@ row_groups.selectAll("g")
      .append("text")
      .attr("dx", 12)
      .attr("dy", "2em")
-     .text(node_label)
+	.text(d => d.node_label())
 
 
-row_gruops.selectAll("g")
+row_groups.selectAll("g")
       .append("circle")
 	.attr("r", d => d.radius)
+     .attr("cx", 0)
+     .attr("cy", 0)
       .attr("class", function(d) { return d.node_type; })
 
 var simulation_history = [];

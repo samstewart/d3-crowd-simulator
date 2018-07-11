@@ -86,16 +86,17 @@ function make_graph(svg_width, svg_height, grid_n) {
 	//
 	// create a hex grid spaced 1 apart
 	// make square 2d lattice
+	// origin of canvas is upper left
 	var standard_grid = mesh_grid(grid_n);
 
 	var nodes = standard_grid.map( function(grid_point) { 	
 				return {
 					node_type: 'empty',
 					distance: Infinity, // for shortest path calculations
-					index: grid_point.reverse(),  // row column
+					index: grid_point,  // row column
 					p: euclidean_lattice_to_hex_lattice(grid_point),
 					radius: spacing / 10,
-					node_label:  `(${d.index.join(',')}): ${d.distance}`,
+					node_label:  function() { return `(${this.index.join(',')}): ${this.distance == Infinity ? '' : this.distance}` },
 					offset_within_row: function() {
 						// offset within a row 
 						return `translate(${spacing / 2 + spacing * this.p[0]}, 0)`;
@@ -107,8 +108,7 @@ function make_graph(svg_width, svg_height, grid_n) {
 
 	// compute_neighbors(nodes);
 	// group into rows
-	var rows_of_nodes = d3.nest().key(d => d.index[0]).entries(nodes).map(d => d.values);
-
+	var rows_of_nodes = d3.nest().key(d => d.index[1]).entries(nodes).map(d => d.values);
 	// allow each row to calculate it's layout
 	rows_of_nodes = rows_of_nodes.map(function(d, i) {
 		return {
@@ -119,7 +119,6 @@ function make_graph(svg_width, svg_height, grid_n) {
 		}
 	});
 	
-	console.log(rows_of_nodes)
 
 	return rows_of_nodes; 
 }
