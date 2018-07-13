@@ -2,12 +2,6 @@ function parse_coordinates(values) {
 	var x_coords = values[0] == '*' ? all_node_indices() : parse_range(values[0]);
 	var y_coords = values[1] == '*' ? all_node_indices() : parse_range(values[1]);
 	
-	if (x_coords.length == 1 && y_coords.length == 1) {
-
-		return [x_coords[0], y_coords[0]];
-
-	}
-
 	return d3.cross(x_coords, y_coords, (n, m) => [n,m]);
 }
 
@@ -104,13 +98,6 @@ function exec_rule_for_string(str, rules) {
 
 }
 
-var rules = {};
-
-// simon venmo
-rules[ '_,_' ] = values => [ parse_coordinates(values) ];
-rules[ 	'\\*' ] = values => d3.selectAll('g g'); // need to escape because valid regex
-rules[ 	'_% of #' ] = values => [ random_subset(values[1], Number(values[0]) / 100) ];
-
 // warning: there are confusing rules based on the greediness of the regex
 //var rule = rule_to_exec('_% of #', values => console.log(values), rules);
 //var result = rule.exec('20% of 1,2')
@@ -132,8 +119,9 @@ function n(node_descriptor) {
 	// # : do * match but then feed it into the rule system and return the results.
 	var rules = {};
 
-	rules[ '_,_' ] = values => [ ids_to_nodes(parse_coordinates(values)) ];
-	rules[ 	'*' ] = values => d3.selectAll('g g');
+	// simon venmo
+	rules[ '_,_' ] = values => ids_to_nodes( parse_coordinates(values) );
+	rules[ 	'\\*' ] = values => d3.selectAll('g g'); // need to escape because valid regex
 	rules[ 	'_% of #' ] = values => [ random_subset(values[1], Number(values[0]) / 100) ];
 
 	return exec_rule_for_string(node_descriptor, rules);

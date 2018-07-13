@@ -1,7 +1,3 @@
-function nodes_in_range(id_range) {
-	// pass in array of node ids
-  	return d3.selectAll('g').filter(function(d) { return id_range.includes(d.id); });
-}
 // Article idea: the power of *seeing* your data structures while debugging. Avoids effort of
 // having to build a mental model. Lets you manipulate them physically. Downside is bad metaphors like 'Desktop'
 // TODO: move into own namespace
@@ -28,17 +24,9 @@ function all_edges(node_data, spacing) {
 	}).filter(function(d) { return 0 < d.length && d.length <= 3/2; })
 }
 
-function delete_node(node_data) {
-
-	// get rid of actual node in the data
-	var ds = d3.selectAll('g').data().filter(function(d) { return d.id != node_data.id });
-
-	d3.selectAll('g')
-	.data(ds, function(d) { return d.id; })
-	.exit()
-	.remove();
+function delete_node(node) {
 	
-	compute_neighbors(ds);
+	node.datum().node_type = 'deleted';
 
 	compute_shortest_path_distances(ds);
 	
