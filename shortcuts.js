@@ -123,10 +123,17 @@ function n(node_descriptor) {
 	rules[ '_,_' ] = values => ids_to_nodes( parse_coordinates(values) );
 	rules[ 	'\\*' ] = values => d3.selectAll('g g'); // need to escape because valid regex
 	rules[ 	'_% of #' ] = values => [ random_subset(values[1], Number(values[0]) / 100) ];
+	rules[ '\\._'] = values => d3.selectAll('.' + values[0]);
+	// TODO: add filtering by data attribute
 
 	return exec_rule_for_string(node_descriptor, rules);
 }
 
+function nd(node_id) {
+	var d = n(node_id).data();
+
+	return d.length == 1 ? d[0] : d;
+}
 function dn(node_id) {
 	n(node_id).each(delete_node);
 }
@@ -135,18 +142,13 @@ function exit(node) {
 	node.datum().distance = 0;
 	node.datum().node_type = 'exit';
 
+	compute_shortest_path_distances(nd('*'));
+
 	update_node_classes();
-
-	compute_shortest_path_distances(d3.selectAll('g').data());
-
 	update_text();
 }
 
-function nd(node_id) {
-	var d = n(node_id).data();
 
-	return d.length == 1 ? d[0] : d;
-}
 function s(selector) {
 	return d3.selectAll(selector);
 }
@@ -164,12 +166,13 @@ function reset() {
 }
 function update_node_classes() {
 
-	d3.selectAll('g circle').attr('class', d => d.node_type);
+	n('*').attr('class', d => d.node_type);
 
 }
 function update_text() {
 
-	s('g text').text(function(d) { return d.id + ' - ' + d.distance; })
+	n('*').select('text').text(d => d.node_label());
 }
+
 var high = highlight_nodes;
 var unhigh = unhighlight_nodes;

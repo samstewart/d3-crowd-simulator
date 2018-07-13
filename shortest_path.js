@@ -1,7 +1,11 @@
 function has_unexplored_nodes(node_data) {
 	// ignore isolated nodes
-	return node_data.filter(function(d) { return d.distance == Infinity && d.neighbors.length > 0; }).length > 0;
+	return node_data.filter(function(d) { return d.distance == Infinity && legal_neighbors(d).length > 0; }).length > 0;
 
+}
+
+function legal_neighbors(d) {
+	return d.neighbors.filter(n => n.node_type != 'deleted');
 }
 
 function minNode(n1, n2) {
@@ -12,14 +16,20 @@ function minNode(n1, n2) {
 
 function minNeighbor(node_data) {
 	// find neighbor with shortest distance to exit
-	return node_data.neighbors.reduceRight(minNode, { distance: Infinity }); // a little nervous that the sentinal value is not of same type. Neighbors can never be empty?
+	return legal_neighbors(node_data).reduceRight(minNode, { distance: Infinity }); // a little nervous that the sentinal value is not of same type. Neighbors can never be empty?
 }
 
-function distances_to_neighbors(node_data) {
-	return node_data.neighbors.map(function(n) { return n.distance + 1; })
+function exit_not_set(node_data) {
+	return node_data.filter(d => d.distance == 0).length == 0;
 }
 
 function compute_shortest_path_distances(node_data) { 
+
+	if (exit_not_set(node_data)) {
+		console.log('set an exit!');
+		return;
+	}
+
 	node_data.forEach(d => d.distance = d.distance == 0 ? 0 : Infinity);
 
 	// for each node, compute the shortest path distance to the exit

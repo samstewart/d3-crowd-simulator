@@ -18,12 +18,35 @@ circle {
 	stroke: none;
 }
 
-circle.guy {
+.deleted circle {
+	fill: white;
+	stroke: grey;
+	stroke-dasharray: 4;
+	transform: scale(1);
+}
+.empty circle {
+	fill: black;
+	transform: scale(1);
+}
+.deleted text {
+	fill: grey;
+}
+
+.guy text {
+	fill: black;
+}
+.empty text {
+	fill: black;
+}
+.exit text {
+	fill: black;
+}
+.guy circle {
 	fill: #f0f;
 	transform: scale(2);
 }
 
-circle.exit {
+.exit circle {
 	fill: #0f0;
 	transform: scale(1);
 }
@@ -42,42 +65,42 @@ var lastSelected = null;
 // global constants
 var svg = d3.select("svg")
 
-var nodes = make_graph(Number(svg.attr('width')), Number(svg.attr('height')), 6);
-// TODO: write higher level point framework
+var node_data = make_graph(Number(svg.attr('width')), Number(svg.attr('height')), 6);
+
 var row_groups = svg.selectAll("g")  
-	.data(nodes) 
+	.data(node_data) 
       .enter()
       .append("g")
 
 row_groups.attr('transform', d => d.offset_for_row())
-/*
-I'm trying to do the state updating. The problem is that it is not entirely local, we need to see if a space is occupied.
-so there is global state.
-*/
 
-function node_label(d) {
-	return `(${d.index.join(',')}): ${d.distance}`
-}
-
+// initialize the nodes
 row_groups.selectAll('g')
 	.data(d => d.nodes_in_row)
 	.enter()
 	.append('g')
 	.attr('transform', d => d.offset_within_row() )
 
-row_groups.selectAll("g")
-     .append("text")
+n('*').append("text")
      .attr("dx", 12)
      .attr("dy", "2em")
-	.text(d => d.node_label())
 
-
-row_groups.selectAll("g")
-      .append("circle")
-	.attr("r", d => d.radius)
+n('*').append("circle")
+     .attr("r", d => d.radius)
      .attr("cx", 0)
      .attr("cy", 0)
-      .attr("class", function(d) { return d.node_type; })
+
+nd('0,0').distance = 0;
+nd('0,0').node_type = 'exit';
+
+function update_shortest_paths() {
+	compute_shortest_path_distances(nd('*'));
+
+	update_text();
+	update_node_classes();
+}
+
+update_shortest_paths();
 
 var simulation_history = [];
 d3.select(window).on('keydown', function() {
@@ -96,8 +119,9 @@ d3.select(window).on('keydown', function() {
 		if (simulation_history.length > 0) {
 			var types = simulation_history.pop();
 
-			d3.selectAll("g").each((d, i) => d.node_type = types[i]);
-			d3.selectAll("g circle").attr('class', d => d.node_type);
+			n('*').each((d, i) => d.node_type = types[i]);
+			
+			update_node_classes();
 		}
 	}
 	if (d3.event.keyCode == 69) { // 'e' is the delete key
@@ -109,23 +133,28 @@ d3.select(window).on('keydown', function() {
 	}
 })
 
-d3.select('svg').on('click', function(d) {
-	var click_point = d3.mouse(this);
+n('*').select('circle').on('click', function(d) { 
+	// cycle through empty, guy, deleted, empty, etc.
+	var types = ['empty', 'guy', 'deleted'];
 	
-	console.log(click_point)
-})
-d3.selectAll('circle').on('click', function(d) { 
-	console.log('clicked')
-	var new_type = d.node_type == 'empty' ? 'guy' : 'empty';
-	d.node_type = new_type; 
-	d3.select(this).attr('class', new_type);	
+	var cur_index = types.indexOf(d.node_type);
+	cur_index++;
 
+	var new_type = types[cur_index % types.length];
+	d.node_type = new_type; 
+
+	if (new_type == 'deleted') {
+		
+		// TODO: convert to event broadcast / listener model
+		update_shortest_paths();
+	}
+
+
+	update_node_classes();
 	lastSelected = d3.select(this);
 })
 
 // demo stuff
-var nodes = ids_to_nodes([[0,0]]);
-nodes = ids_to_nodes([[0,0], [0,1]]);
 
 
 </script>

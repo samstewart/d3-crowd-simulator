@@ -1,20 +1,20 @@
 // Article idea: the power of *seeing* your data structures while debugging. Avoids effort of
 // having to build a mental model. Lets you manipulate them physically. Downside is bad metaphors like 'Desktop'
 // TODO: move into own namespace
-function all_neighbors(node_data, spacing) {
+function all_neighbors(node_data) {
 	// return [ [neighbors for node at index 0], [neighbors for node at index 1], etc]
 	return d3.nest()
-		.key(d => d.src.id)
+		.key(d => d.src.index.toString())
 		.rollup(values => values.map(v => v.dst))
-		.entries(all_edges(node_data, spacing))
+		.entries(all_edges(node_data))
 		.map(p => p.value)
 }
 
 
-function all_edges(node_data, spacing) {
+function all_edges(node_data) {
 	// returns edges connecting nodes given by node_data.
 	// first do cross product for all pairings of edges, then filter down to edges between nodes that are next to each other.
-	// we multiply by 3/2 to avoid floating point comparison errors.
+	// we look in radius 3/2 to avoid floating point error 
 	return d3.cross(node_data, node_data, function(n1, n2) {
 		return {
 				src: n1,
@@ -24,14 +24,14 @@ function all_edges(node_data, spacing) {
 	}).filter(function(d) { return 0 < d.length && d.length <= 3/2; })
 }
 
-function delete_node(node) {
+function delete_nodes(nodes) {
 	
-	node.datum().node_type = 'deleted';
+	nodes.each(d => d.node_type = 'deleted');
 
-	compute_shortest_path_distances(ds);
+	compute_shortest_path_distances(nodes.data());
 	
-	d3.selectAll('text').text(function(d) { return d.id + ' - ' + d.distance; })
-
+	update_node_classes();
+	update_text();
 }
 
 function euclidean_distance(p1, p2) {
@@ -66,6 +66,7 @@ function mesh_grid(n) {
 	// make a list of grid points
 	return d3.cross(d3.range(n), d3.range(n), (x,y) => [x,y]);
 }
+
 function make_graph(svg_width, svg_height, grid_n) {
 	
 	var spacing = svg_width / (grid_n + 1); 
@@ -93,8 +94,8 @@ function make_graph(svg_width, svg_height, grid_n) {
 
 			});
 
+	compute_neighbors(nodes);
 
-	// compute_neighbors(nodes);
 	// group into rows
 	var rows_of_nodes = d3.nest().key(d => d.index[1]).entries(nodes).map(d => d.values);
 	// allow each row to calculate it's layout
